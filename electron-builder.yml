@@ -25,5 +25,11 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: LiveLink
+  # 开始菜单生成 LiveLink 分组文件夹，内含启动 + 卸载两个快捷方式（朋友在开始菜单能找到卸载入口）
+  menuCategory: true
+  # NSIS 安装/卸载向导只装简体中文（默认行为是装全部语言+按系统语言挑，对英文 Win 用户会显示英文向导。
+  # 这里限定 zh_CN，让 addLangs 只 insert SimpChinese——朋友不论什么系统语言都看中文向导）
+  installerLanguages:
+    - zh_CN
   # installerIcon: resources/icon.ico
   # uninstallerIcon: resources/icon.ico

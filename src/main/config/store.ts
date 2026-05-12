@@ -1,10 +1,12 @@
+import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import { defaultRules } from '../rules/defaults'
 import type { Rule } from '../rules/types'
 import { DEFAULT_TTS_CONFIG, type TTSConfig } from '../actions/tts'
 
 // B 站登录态。SESSDATA 是 cookie，2023 年 7 月起 B 站对游客限制 DANMU_MSG 推送，需要登录态。
-// 仅本地存储，不上传。注意：明文保存在 livelink-config.json，分发给主播朋友需配 safeStorage（P1）。
+// 仅本地存储，不上传。sessdata 用 Electron safeStorage 加密（Win 上走 DPAPI，与当前用户账号绑定），
+// 文件复制到别的电脑解不开 → 防止 cookie 共享/泄露。uid / buvid 不算敏感，明文保存。
 export interface BilibiliAuth {
   sessdata: string
   uid: string
@@ -93,14 +95,60 @@ export class AppConfig {
   // bilibili auth
   getBilibiliAuth(): BilibiliAuth {
     // electron-store 在升级老配置时可能读到 undefined（新增 key），用 defaults 兜底
-    return this.store.get('auth')?.bilibili ?? { sessdata: '', uid: '', buvid: '' }
+    const stored = this.store.get('auth')?.bilibili ?? { sessdata: '', uid: '', buvid: '' }
+    return {
+      sessdata: decryptSessdata(stored.sessdata),
+      uid: stored.uid,
+      buvid: stored.buvid
+    }
   }
   setBilibiliAuth(auth: BilibiliAuth): void {
-    this.store.set('auth', { bilibili: auth })
+    this.store.set('auth', {
+      bilibili: {
+        sessdata: encryptSessdata(auth.sessdata),
+        uid: auth.uid,
+        buvid: auth.buvid
+      }
+    })
   }
   patchBilibiliAuth(patch: Partial<BilibiliAuth>): BilibiliAuth {
     const next: BilibiliAuth = { ...this.getBilibiliAuth(), ...patch }
     this.setBilibiliAuth(next)
     return next
   }
+}
+
+// SESSDATA 加密包装。safeStorage 仅在 app.whenReady 之后可用——这里 get/set 调用时机
+// 都在 IPC handler 里（早于一切 IPC，app 已 ready），安全。
+//
+// 三种存储格式：
+//   "enc:<base64>"  — safeStorage 加密成功的密文（新版默认）
+//   "plain:<raw>"   — 写入时机器不支持加密（虚拟机 / 没登录 Win 账号）的明文 fallback
+//   "<raw>"         — 老版本配置（patch3 及更早）的裸明文。第一次 set 后会被覆盖为 enc:
+function encryptSessdata(plain: string): string {
+  if (!plain) return ''
+  if (!safeStorage.isEncryptionAvailable()) {
+    return `plain:${plain}`
+  }
+  const buf = safeStorage.encryptString(plain)
+  return `enc:${buf.toString('base64')}`
+}
+
+function decryptSessdata(stored: string): string {
+  if (!stored) return ''
+  if (stored.startsWith('plain:')) return stored.slice('plain:'.length)
+  if (stored.startsWith('enc:')) {
+    if (!safeStorage.isEncryptionAvailable()) {
+      console.warn('[AppConfig] sessdata is encrypted but safeStorage unavailable; returning empty')
+      return ''
+    }
+    try {
+      const buf = Buffer.from(stored.slice('enc:'.length), 'base64')
+      return safeStorage.decryptString(buf)
+    } catch (err) {
+      console.error('[AppConfig] sessdata decrypt failed', err)
+      return ''
+    }
+  }
+  return stored
 }
