@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { status, room, overlayUrl, isConnected, isBusy } from '../store'
+import {
+  status,
+  room,
+  overlayUrl,
+  overlayFatalError,
+  overlayRetrying,
+  isConnected,
+  isBusy,
+  retryOverlay
+} from '../store'
 
 const roomInput = ref(room.value.id)
 const errorMsg = ref<string | null>(null)
@@ -88,7 +97,7 @@ async function copyOverlayUrl(): Promise<void> {
           <span v-else-if="status.state === 'validating'">校验房间号中…</span>
           <span v-else-if="status.state === 'connecting'">连接中…</span>
           <span v-else-if="status.state === 'connected'">已连接 · 房间 {{ status.roomId }}</span>
-          <span v-else-if="status.state === 'reconnecting'">断线重连中…</span>
+          <span v-else-if="status.state === 'reconnecting'">{{ status.message ?? '断线重连中…' }}</span>
           <span v-else-if="status.state === 'error'">出错了</span>
         </span>
       </div>
@@ -101,8 +110,32 @@ async function copyOverlayUrl(): Promise<void> {
       </p>
     </section>
 
-    <!-- Overlay URL 卡片 -->
-    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+    <!-- Overlay URL 卡片：正常 / 启动失败两种状态 -->
+    <section
+      v-if="overlayFatalError"
+      class="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-5"
+    >
+      <div class="flex items-start gap-3">
+        <span class="text-xl">⚠️</span>
+        <div class="flex-1">
+          <div class="font-medium text-rose-200">Overlay 服务启动失败</div>
+          <div class="mt-1 text-xs text-rose-300/80 break-all font-mono">{{ overlayFatalError }}</div>
+          <p class="mt-3 text-sm text-slate-300">
+            常见原因：默认端口 38501 起 50 个端口全被占用 / 防火墙拦截。
+            建议：关掉占用端口的程序，或者重启电脑后再点重试；如还不行，重启应用。
+          </p>
+        </div>
+        <button
+          @click="retryOverlay"
+          :disabled="overlayRetrying"
+          class="shrink-0 rounded-lg bg-rose-500 px-4 py-2 text-sm font-medium text-white hover:bg-rose-400 disabled:opacity-50"
+        >
+          {{ overlayRetrying ? '重试中…' : '重试启动' }}
+        </button>
+      </div>
+    </section>
+
+    <section v-else class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
       <div class="mb-2 flex items-center justify-between">
         <label class="text-sm text-slate-300">OBS 浏览器源 URL</label>
         <span v-if="copyToast" class="text-xs text-emerald-400">{{ copyToast }}</span>

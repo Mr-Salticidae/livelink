@@ -10,9 +10,10 @@ import { TTSPlayer } from './actions/tts'
 import { OverlayBroadcaster } from './actions/overlay'
 import { LogSink } from './actions/log'
 import { OverlayServer } from './overlay-server/server'
+import { OverlayController } from './overlay-controller'
 import { AppConfig } from './config/store'
 import { registerIpcHandlers } from './ipc'
-import type { ConnectionStatus } from '../shared/ipc-channels'
+import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
 
 let mainWindow: BrowserWindow | null = null
 const status: { current: ConnectionStatus } = { current: { state: 'idle' } }
@@ -25,6 +26,12 @@ ttsPlayer.setConfig(config.getTts())
 
 const overlayBroadcaster = new OverlayBroadcaster()
 const overlayServer = new OverlayServer()
+const overlayController = new OverlayController(
+  overlayServer,
+  overlayBroadcaster,
+  config,
+  join(__dirname, '../renderer')
+)
 
 const adapter = new BilibiliAdapter()
 const dispatcher = new ActionDispatcher({ tts: ttsPlayer, overlay: overlayBroadcaster, log })
@@ -70,18 +77,6 @@ function createWindow(): void {
   }
 }
 
-async function startBackgroundServices(): Promise<void> {
-  // OverlayServer 服务的静态目录指向 build 后的 renderer
-  // dev 模式下若 out/renderer 不存在，OverlayServer 会返回 503 + 提示页面
-  const rendererDir = join(__dirname, '../renderer')
-  const port = await overlayServer.start({
-    rendererDir,
-    preferredPort: config.getOverlayPort()
-  })
-  config.setOverlayPort(port)
-  overlayBroadcaster.setSender((msg) => overlayServer.broadcast(msg))
-}
-
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('io.jspider.livelink')
 
@@ -89,10 +84,16 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // overlay 状态变更时推送到渲染端（启动失败、retry 中、retry 成功都触发）
+  overlayController.setOnChange(() => {
+    mainWindow?.webContents.send(IpcChannels.OverlayStatusUpdate, overlayController.getState())
+  })
+
   try {
-    await startBackgroundServices()
+    await overlayController.start()
   } catch (err) {
-    console.error('[main] startBackgroundServices failed', err)
+    // 失败已经在 controller 里记 fatalError，UI 会显示错误条 + 重试按钮，不阻断应用启动
+    console.error('[main] overlay start failed (fatal recorded)', err)
   }
 
   registerIpcHandlers({
@@ -101,6 +102,7 @@ app.whenReady().then(async () => {
     engine,
     ttsPlayer,
     overlayServer,
+    overlayController,
     config,
     log,
     status

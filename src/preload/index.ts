@@ -21,6 +21,13 @@ const api = {
   // Overlay
   getOverlayPort: () => ipcRenderer.invoke(IpcChannels.ConfigGetOverlayPort),
   getOverlayUrl: () => ipcRenderer.invoke(IpcChannels.OverlayUrl),
+  getOverlayStatus: () => ipcRenderer.invoke(IpcChannels.OverlayStatus),
+  retryOverlay: () => ipcRenderer.invoke(IpcChannels.OverlayRetry),
+  onOverlayStatus: (cb: (s: unknown) => void) => {
+    const handler = (_: IpcRendererEvent, s: unknown): void => cb(s)
+    ipcRenderer.on(IpcChannels.OverlayStatusUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.OverlayStatusUpdate, handler)
+  },
 
   // 规则
   ruleList: () => ipcRenderer.invoke(IpcChannels.RuleList),

@@ -1,10 +1,12 @@
 import { ref, computed } from 'vue'
-import type { ConnectionStatus, LogEntry, Rule, TTSConfig, VoiceOption } from './types'
+import type { ConnectionStatus, LogEntry, OverlayState, Rule, TTSConfig, VoiceOption } from './types'
 
 export const status = ref<ConnectionStatus>({ state: 'idle' })
 export const room = ref<{ id: string }>({ id: '' })
 export const overlayUrl = ref<string>('')
 export const overlayPort = ref<number>(0)
+export const overlayFatalError = ref<string | null>(null)
+export const overlayRetrying = ref<boolean>(false)
 export const ttsConfig = ref<TTSConfig | null>(null)
 export const voices = ref<VoiceOption[]>([])
 export const rules = ref<Rule[]>([])
@@ -29,10 +31,10 @@ export async function loadInitialData(): Promise<void> {
     console.error('getStatus failed', err)
   }
   try {
-    overlayPort.value = await api.getOverlayPort()
-    overlayUrl.value = await api.getOverlayUrl()
+    const overlayState = await api.getOverlayStatus()
+    applyOverlayState(overlayState)
   } catch (err) {
-    console.error('overlay info failed', err)
+    console.error('overlay status failed', err)
   }
   try {
     room.value = await api.getRoom()
@@ -65,4 +67,24 @@ export async function loadInitialData(): Promise<void> {
       logs.value.splice(0, logs.value.length - MAX_LOG_BUFFER)
     }
   })
+  api.onOverlayStatus((s) => applyOverlayState(s))
+}
+
+function applyOverlayState(s: OverlayState): void {
+  overlayPort.value = s.port
+  overlayUrl.value = s.url
+  overlayFatalError.value = s.fatalError
+  overlayRetrying.value = s.retrying
+}
+
+export async function retryOverlay(): Promise<void> {
+  overlayRetrying.value = true
+  try {
+    const next = await window.api.retryOverlay()
+    applyOverlayState(next)
+  } catch (err) {
+    overlayFatalError.value = (err as Error)?.message ?? '重试失败'
+  } finally {
+    overlayRetrying.value = false
+  }
 }
