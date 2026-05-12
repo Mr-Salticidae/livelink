@@ -5,7 +5,7 @@ export type ConnectionStatus =
   | { state: 'validating'; roomInput: string }
   | { state: 'connecting'; roomId: number }
   | { state: 'connected'; roomId: number }
-  | { state: 'reconnecting'; roomId: number }
+  | { state: 'reconnecting'; roomId: number; message?: string }
   | { state: 'error'; code: string; message: string }
 
 export type EventKind =
@@ -65,6 +65,13 @@ export interface LogEntry {
   text: string
 }
 
+export interface OverlayState {
+  port: number
+  url: string
+  fatalError: string | null
+  retrying: boolean
+}
+
 // 类型化 window.api，避免 renderer 各处 cast
 export interface ApiSurface {
   startConnection: (roomId: string) => Promise<{ ok: boolean; roomId: number }>
@@ -81,6 +88,9 @@ export interface ApiSurface {
 
   getOverlayPort: () => Promise<number>
   getOverlayUrl: () => Promise<string>
+  getOverlayStatus: () => Promise<OverlayState>
+  retryOverlay: () => Promise<OverlayState>
+  onOverlayStatus: (cb: (s: OverlayState) => void) => () => void
 
   ruleList: () => Promise<Rule[]>
   ruleUpsert: (rule: Rule) => Promise<Rule[]>

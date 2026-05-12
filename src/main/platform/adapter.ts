@@ -58,10 +58,21 @@ export type StandardEvent =
 
 export type EventListener = (e: StandardEvent) => void
 
+// Adapter 生命周期事件，主进程根据这些信号刷新连接状态徽章
+export type AdapterStatusEvent =
+  | { kind: 'opened'; roomId: number }
+  | { kind: 'closed'; intended: boolean } // intended=true 表示用户主动 disconnect；false 表示被动断线
+  | { kind: 'error'; message: string }
+
+export type StatusListener = (e: AdapterStatusEvent) => void
+
 export interface PlatformAdapter {
   readonly platform: 'bilibili' | 'douyin' | 'huya'
   readonly isConnected: boolean
   connect(roomId: string | number): Promise<void>
   disconnect(): Promise<void>
   on(listener: EventListener): () => void
+  onStatus(listener: StatusListener): () => void
+  // 让 adapter 触发底层 ws 的 reconnect（不重新走 connect 流程，保留当前 roomId）
+  reconnect(): void
 }

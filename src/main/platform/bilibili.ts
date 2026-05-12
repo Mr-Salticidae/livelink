@@ -1,8 +1,10 @@
 import { startListen, type MessageListener, type MsgHandler, type User } from 'blive-message-listener'
 import type {
+  AdapterStatusEvent,
   EventListener,
   PlatformAdapter,
   StandardEvent,
+  StatusListener,
   UserInfo
 } from './adapter'
 import { AdapterAlreadyConnectedError, RoomApiError, RoomNotFoundError } from './errors'
@@ -67,7 +69,10 @@ export class BilibiliAdapter implements PlatformAdapter {
   readonly platform = 'bilibili' as const
   private listener: MessageListener | null = null
   private listeners = new Set<EventListener>()
+  private statusListeners = new Set<StatusListener>()
   private connectedRoomId: number | null = null
+  // disconnect() 调 listener.close() 前置 true，让 onClose 知道这次是用户主动停
+  private expectClose = false
 
   get isConnected(): boolean {
     return this.listener != null && !this.listener.closed
@@ -82,6 +87,11 @@ export class BilibiliAdapter implements PlatformAdapter {
     return () => this.listeners.delete(cb)
   }
 
+  onStatus(cb: StatusListener): () => void {
+    this.statusListeners.add(cb)
+    return () => this.statusListeners.delete(cb)
+  }
+
   private emit(e: StandardEvent): void {
     for (const l of this.listeners) {
       try {
@@ -89,6 +99,28 @@ export class BilibiliAdapter implements PlatformAdapter {
       } catch (err) {
         console.error('[BilibiliAdapter] listener threw', err)
       }
+    }
+  }
+
+  private emitStatus(e: AdapterStatusEvent): void {
+    for (const l of this.statusListeners) {
+      try {
+        l(e)
+      } catch (err) {
+        console.error('[BilibiliAdapter] status listener threw', err)
+      }
+    }
+  }
+
+  reconnect(): void {
+    if (!this.listener) {
+      this.emitStatus({ kind: 'error', message: '没有活跃连接，无法 reconnect' })
+      return
+    }
+    try {
+      this.listener.reconnect()
+    } catch (err) {
+      this.emitStatus({ kind: 'error', message: String((err as Error)?.message ?? err) })
     }
   }
 
@@ -100,9 +132,20 @@ export class BilibiliAdapter implements PlatformAdapter {
     const { roomId } = await resolveRoomId(roomInput)
 
     const handler: MsgHandler = {
-      onOpen: () => console.log(`[BilibiliAdapter] connected to room ${roomId}`),
-      onClose: () => console.log(`[BilibiliAdapter] connection closed for room ${roomId}`),
-      onError: (err) => console.error('[BilibiliAdapter] error', err),
+      onOpen: () => {
+        console.log(`[BilibiliAdapter] connected to room ${roomId}`)
+        this.emitStatus({ kind: 'opened', roomId })
+      },
+      onClose: () => {
+        const intended = this.expectClose
+        this.expectClose = false
+        console.log(`[BilibiliAdapter] connection closed for room ${roomId} (intended=${intended})`)
+        this.emitStatus({ kind: 'closed', intended })
+      },
+      onError: (err) => {
+        console.error('[BilibiliAdapter] error', err)
+        this.emitStatus({ kind: 'error', message: String(err?.message ?? err) })
+      },
 
       onIncomeDanmu: (msg) => {
         this.emit({
@@ -187,11 +230,13 @@ export class BilibiliAdapter implements PlatformAdapter {
   }
 
   async disconnect(): Promise<void> {
+    this.expectClose = true // 让随后 listener.close() 触发的 onClose 拿到 intended=true
     if (this.listener && !this.listener.closed) {
       this.listener.close()
     }
     this.listener = null
     this.connectedRoomId = null
-    this.listeners.clear()
+    // 不清 this.listeners / this.statusListeners：那些是主进程级别的订阅，
+    // 跨 connect/disconnect 周期保持。清掉会导致再 connect 后事件 / 状态断流。
   }
 }

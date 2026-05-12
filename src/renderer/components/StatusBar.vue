@@ -14,7 +14,7 @@ const stateText = computed(() => {
     case 'connected':
       return `已连接：${s.roomId}`
     case 'reconnecting':
-      return `断线重连：${s.roomId}`
+      return s.message ?? `断线重连：${s.roomId}`
     case 'error':
       return `错误：${s.message}`
   }

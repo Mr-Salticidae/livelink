@@ -24,6 +24,9 @@ export const IpcChannels = {
 
   // Overlay
   OverlayUrl: 'overlay:url',
+  OverlayStatus: 'overlay:status',
+  OverlayRetry: 'overlay:retry',
+  OverlayStatusUpdate: 'overlay:status-update',
 
   // 日志（主→渲染 push）
   LogAppend: 'log:append',
@@ -33,11 +36,19 @@ export const IpcChannels = {
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels]
 
+// Overlay HTTP 服务的整体状态（启动失败时 fatalError 非空、port 为 0）
+export interface OverlayState {
+  port: number
+  url: string
+  fatalError: string | null
+  retrying: boolean
+}
+
 // 状态枚举（连接状态机）
 export type ConnectionStatus =
   | { state: 'idle' }
   | { state: 'validating'; roomInput: string }
   | { state: 'connecting'; roomId: number }
   | { state: 'connected'; roomId: number }
-  | { state: 'reconnecting'; roomId: number }
+  | { state: 'reconnecting'; roomId: number; message?: string }
   | { state: 'error'; code: string; message: string }
