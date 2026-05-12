@@ -1,6 +1,7 @@
 import { startListen, type MessageListener, type MsgHandler, type User } from 'blive-message-listener'
 import type {
   AdapterStatusEvent,
+  BilibiliConnectOptions,
   EventListener,
   PlatformAdapter,
   StandardEvent,
@@ -65,6 +66,10 @@ function toUserInfo(u: User): UserInfo {
   }
 }
 
+// cmd 直方图节流间隔。诊断辅助：每 30s 把收到的 cmd 频次打到主进程 console，
+// 跳蛛先生填了 SESSDATA 还是收不到弹幕时用来排查 B 站到底推了哪些 cmd
+const CMD_HISTOGRAM_FLUSH_MS = 30_000
+
 export class BilibiliAdapter implements PlatformAdapter {
   readonly platform = 'bilibili' as const
   private listener: MessageListener | null = null
@@ -73,6 +78,9 @@ export class BilibiliAdapter implements PlatformAdapter {
   private connectedRoomId: number | null = null
   // disconnect() 调 listener.close() 前置 true，让 onClose 知道这次是用户主动停
   private expectClose = false
+  // 诊断：收到的 cmd 频次（30s flush 一次）
+  private cmdHistogram = new Map<string, number>()
+  private histogramFlushTimer: NodeJS.Timeout | null = null
 
   get isConnected(): boolean {
     return this.listener != null && !this.listener.closed
@@ -124,12 +132,24 @@ export class BilibiliAdapter implements PlatformAdapter {
     }
   }
 
-  async connect(roomInput: string | number): Promise<void> {
+  async connect(roomInput: string | number, options?: BilibiliConnectOptions): Promise<void> {
     if (this.listener && !this.listener.closed) {
       throw new AdapterAlreadyConnectedError()
     }
 
     const { roomId } = await resolveRoomId(roomInput)
+
+    // 构造 startListen 的 ws options。底层是 KeepLiveTCP（TCP 直连），但 lib 在 init() 里
+    // 会用 ws.headers 发 HTTP 预请求拿 host_list / key / buvid，登录态就是这样间接生效的。
+    // 仅在填了 sessdata 时启用，避免空字段污染请求头
+    const sessdata = options?.sessdata?.trim()
+    const wsOptions: Record<string, unknown> | undefined = sessdata
+      ? {
+          headers: { Cookie: `SESSDATA=${sessdata}` },
+          ...(options?.uid ? { uid: Number(options.uid) } : {}),
+          ...(options?.buvid?.trim() ? { buvid: options.buvid.trim() } : {})
+        }
+      : undefined
 
     const handler: MsgHandler = {
       onOpen: () => {
@@ -222,10 +242,26 @@ export class BilibiliAdapter implements PlatformAdapter {
             durationSec: msg.body.time
           }
         })
+      },
+
+      // 诊断：所有原始 cmd 计入直方图。SESSDATA 填了仍收不到弹幕时，看主进程 console
+      // 的 30s 直方图就能判断 B 站到底推了什么 cmd（DANMU_MSG 是否在列）
+      raw: {
+        msg: (m: { cmd?: string }) => {
+          const cmd = m?.cmd ?? 'unknown'
+          this.cmdHistogram.set(cmd, (this.cmdHistogram.get(cmd) ?? 0) + 1)
+          this.scheduleHistogramFlush()
+        }
       }
     }
 
-    this.listener = startListen(roomId, handler)
+    // startListen 第三参数类型是 MessageListenerTCPOptions { ws?: TCPOptions }
+    // 我们用 Record<string, unknown> 构造 wsOptions 避开 lib 内部嵌套类型，传入时 cast
+    this.listener = startListen(
+      roomId,
+      handler,
+      wsOptions ? ({ ws: wsOptions } as Parameters<typeof startListen>[2]) : undefined
+    )
     this.connectedRoomId = roomId
   }
 
@@ -236,7 +272,27 @@ export class BilibiliAdapter implements PlatformAdapter {
     }
     this.listener = null
     this.connectedRoomId = null
+    // 清掉诊断直方图状态，避免下次 connect 时把上次的统计带过来
+    if (this.histogramFlushTimer) {
+      clearTimeout(this.histogramFlushTimer)
+      this.histogramFlushTimer = null
+    }
+    this.cmdHistogram.clear()
     // 不清 this.listeners / this.statusListeners：那些是主进程级别的订阅，
     // 跨 connect/disconnect 周期保持。清掉会导致再 connect 后事件 / 状态断流。
+  }
+
+  private scheduleHistogramFlush(): void {
+    if (this.histogramFlushTimer) return
+    this.histogramFlushTimer = setTimeout(() => {
+      this.histogramFlushTimer = null
+      if (this.cmdHistogram.size === 0) return
+      const entries = [...this.cmdHistogram.entries()].sort((a, b) => b[1] - a[1])
+      console.log(`[BilibiliAdapter] cmd histogram (last ${CMD_HISTOGRAM_FLUSH_MS / 1000}s):`)
+      for (const [cmd, count] of entries) {
+        console.log(`  ${cmd}: ${count}`)
+      }
+      this.cmdHistogram.clear()
+    }, CMD_HISTOGRAM_FLUSH_MS)
   }
 }

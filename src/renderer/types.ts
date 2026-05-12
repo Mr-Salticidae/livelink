@@ -72,6 +72,12 @@ export interface OverlayState {
   retrying: boolean
 }
 
+export interface BilibiliAuth {
+  sessdata: string
+  uid: string
+  buvid: string
+}
+
 // 类型化 window.api，避免 renderer 各处 cast
 export interface ApiSurface {
   startConnection: (roomId: string) => Promise<{ ok: boolean; roomId: number }>
@@ -80,6 +86,9 @@ export interface ApiSurface {
 
   getRoom: () => Promise<{ id: string }>
   setRoomId: (id: string) => Promise<{ id: string }>
+
+  getBilibiliAuth: () => Promise<BilibiliAuth>
+  patchBilibiliAuth: (patch: Partial<BilibiliAuth>) => Promise<BilibiliAuth>
 
   getTts: () => Promise<TTSConfig>
   patchTts: (patch: Partial<TTSConfig>) => Promise<TTSConfig>

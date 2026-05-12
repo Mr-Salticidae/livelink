@@ -58,6 +58,14 @@ export type StandardEvent =
 
 export type EventListener = (e: StandardEvent) => void
 
+// 平台连接时可选的登录态参数。MVP 阶段只 BilibiliAdapter 用；
+// 未来抖音/虎牙 adapter 各自有 options 类型，目前不抽象成 generic
+export interface BilibiliConnectOptions {
+  sessdata?: string
+  uid?: string | number
+  buvid?: string
+}
+
 // Adapter 生命周期事件，主进程根据这些信号刷新连接状态徽章
 export type AdapterStatusEvent =
   | { kind: 'opened'; roomId: number }
@@ -69,10 +77,10 @@ export type StatusListener = (e: AdapterStatusEvent) => void
 export interface PlatformAdapter {
   readonly platform: 'bilibili' | 'douyin' | 'huya'
   readonly isConnected: boolean
-  connect(roomId: string | number): Promise<void>
+  connect(roomId: string | number, options?: BilibiliConnectOptions): Promise<void>
   disconnect(): Promise<void>
   on(listener: EventListener): () => void
   onStatus(listener: StatusListener): () => void
-  // 让 adapter 触发底层 ws 的 reconnect（不重新走 connect 流程，保留当前 roomId）
+  // 让 adapter 触发底层 ws 的 reconnect（不重新走 connect 流程，保留当前 roomId 和 options）
   reconnect(): void
 }

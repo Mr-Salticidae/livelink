@@ -10,6 +10,7 @@ import {
   isBusy,
   retryOverlay
 } from '../store'
+import BilibiliAuthAdvanced from '../components/BilibiliAuthAdvanced.vue'
 
 const roomInput = ref(room.value.id)
 const errorMsg = ref<string | null>(null)
@@ -166,5 +167,8 @@ async function copyOverlayUrl(): Promise<void> {
         <li>3. 把上面这个 URL 粘贴到"URL"栏 → 宽度 1920、高度 1080 → 确定。直播间一有动静，特效就会出现。</li>
       </ol>
     </section>
+
+    <!-- 高级 · B 站登录态（解决游客模式收不到弹幕的问题） -->
+    <BilibiliAuthAdvanced />
   </div>
 </template>

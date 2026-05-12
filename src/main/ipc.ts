@@ -5,7 +5,7 @@ import type { RuleEngine } from './rules/engine'
 import { TTSPlayer, VOICE_OPTIONS, type TTSConfig } from './actions/tts'
 import type { OverlayServer } from './overlay-server/server'
 import type { OverlayController } from './overlay-controller'
-import type { AppConfig } from './config/store'
+import type { AppConfig, BilibiliAuth } from './config/store'
 import type { LogSink, LogEntry } from './actions/log'
 import type { Rule } from './rules/types'
 import { toFriendlyError } from './errors/friendly'
@@ -105,7 +105,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     clearReconnect() // 用户重新开始连接，清掉旧的重连定时
     pushStatus({ state: 'validating', roomInput: String(roomInput) })
     try {
-      await adapter.connect(roomInput)
+      // 把 B 站登录态（如有）一并传给 adapter，让 lib 用 SESSDATA 做 HTTP 预请求拿登录态 token
+      const auth = config.getBilibiliAuth()
+      await adapter.connect(roomInput, {
+        sessdata: auth.sessdata || undefined,
+        uid: auth.uid || undefined,
+        buvid: auth.buvid || undefined
+      })
       const rid = adapter.currentRoomId ?? 0
       config.setRoomId(String(roomInput))
       pushStatus({ state: 'connected', roomId: rid })
@@ -139,6 +145,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     ttsPlayer.setConfig(next)
     return next
   })
+
+  ipcMain.handle(IpcChannels.ConfigGetBilibiliAuth, () => config.getBilibiliAuth())
+  ipcMain.handle(IpcChannels.ConfigPatchBilibiliAuth, (_e, patch: Partial<BilibiliAuth>) =>
+    config.patchBilibiliAuth(patch)
+  )
 
   ipcMain.handle(IpcChannels.ConfigGetOverlayPort, () => overlayServer.getPort())
   ipcMain.handle(IpcChannels.OverlayUrl, () => overlayServer.getOverlayUrl())

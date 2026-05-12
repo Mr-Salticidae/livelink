@@ -12,6 +12,11 @@ const api = {
   getRoom: () => ipcRenderer.invoke(IpcChannels.ConfigGetRoom),
   setRoomId: (id: string) => ipcRenderer.invoke(IpcChannels.ConfigSetRoom, id),
 
+  // 配置 · B 站登录态（高级）
+  getBilibiliAuth: () => ipcRenderer.invoke(IpcChannels.ConfigGetBilibiliAuth),
+  patchBilibiliAuth: (patch: Record<string, string>) =>
+    ipcRenderer.invoke(IpcChannels.ConfigPatchBilibiliAuth, patch),
+
   // 配置 · TTS
   getTts: () => ipcRenderer.invoke(IpcChannels.ConfigGetTts),
   patchTts: (patch: Record<string, unknown>) => ipcRenderer.invoke(IpcChannels.ConfigPatchTts, patch),

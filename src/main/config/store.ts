@@ -3,12 +3,21 @@ import { defaultRules } from '../rules/defaults'
 import type { Rule } from '../rules/types'
 import { DEFAULT_TTS_CONFIG, type TTSConfig } from '../actions/tts'
 
+// B 站登录态。SESSDATA 是 cookie，2023 年 7 月起 B 站对游客限制 DANMU_MSG 推送，需要登录态。
+// 仅本地存储，不上传。注意：明文保存在 livelink-config.json，分发给主播朋友需配 safeStorage（P1）。
+export interface BilibiliAuth {
+  sessdata: string
+  uid: string
+  buvid: string // buvid3，可选
+}
+
 export interface AppConfigSchema {
   room: { id: string }
   rules: Rule[]
   tts: TTSConfig
   overlay: { port: number }
   platform: { active: 'bilibili' }
+  auth: { bilibili: BilibiliAuth }
 }
 
 const defaults: AppConfigSchema = {
@@ -16,7 +25,8 @@ const defaults: AppConfigSchema = {
   rules: defaultRules,
   tts: { ...DEFAULT_TTS_CONFIG },
   overlay: { port: 38501 },
-  platform: { active: 'bilibili' }
+  platform: { active: 'bilibili' },
+  auth: { bilibili: { sessdata: '', uid: '', buvid: '' } }
 }
 
 export class AppConfig {
@@ -78,5 +88,19 @@ export class AppConfig {
   }
   setOverlayPort(port: number): void {
     this.store.set('overlay', { port })
+  }
+
+  // bilibili auth
+  getBilibiliAuth(): BilibiliAuth {
+    // electron-store 在升级老配置时可能读到 undefined（新增 key），用 defaults 兜底
+    return this.store.get('auth')?.bilibili ?? { sessdata: '', uid: '', buvid: '' }
+  }
+  setBilibiliAuth(auth: BilibiliAuth): void {
+    this.store.set('auth', { bilibili: auth })
+  }
+  patchBilibiliAuth(patch: Partial<BilibiliAuth>): BilibiliAuth {
+    const next: BilibiliAuth = { ...this.getBilibiliAuth(), ...patch }
+    this.setBilibiliAuth(next)
+    return next
   }
 }

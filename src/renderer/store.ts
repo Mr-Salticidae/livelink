@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import type { ConnectionStatus, LogEntry, OverlayState, Rule, TTSConfig, VoiceOption } from './types'
+import type { BilibiliAuth, ConnectionStatus, LogEntry, OverlayState, Rule, TTSConfig, VoiceOption } from './types'
 
 export const status = ref<ConnectionStatus>({ state: 'idle' })
 export const room = ref<{ id: string }>({ id: '' })
@@ -9,6 +9,7 @@ export const overlayFatalError = ref<string | null>(null)
 export const overlayRetrying = ref<boolean>(false)
 export const ttsConfig = ref<TTSConfig | null>(null)
 export const voices = ref<VoiceOption[]>([])
+export const bilibiliAuth = ref<BilibiliAuth>({ sessdata: '', uid: '', buvid: '' })
 export const rules = ref<Rule[]>([])
 export const logs = ref<LogEntry[]>([])
 
@@ -46,6 +47,11 @@ export async function loadInitialData(): Promise<void> {
     voices.value = await api.ttsVoiceList()
   } catch (err) {
     console.error('tts info failed', err)
+  }
+  try {
+    bilibiliAuth.value = await api.getBilibiliAuth()
+  } catch (err) {
+    console.error('bilibili auth load failed', err)
   }
   try {
     rules.value = await api.ruleList()

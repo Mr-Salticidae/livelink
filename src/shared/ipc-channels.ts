@@ -12,6 +12,8 @@ export const IpcChannels = {
   ConfigGetTts: 'config:tts:get',
   ConfigPatchTts: 'config:tts:patch',
   ConfigGetOverlayPort: 'config:overlay:port',
+  ConfigGetBilibiliAuth: 'config:auth:bilibili:get',
+  ConfigPatchBilibiliAuth: 'config:auth:bilibili:patch',
 
   // 规则
   RuleList: 'rule:list',
