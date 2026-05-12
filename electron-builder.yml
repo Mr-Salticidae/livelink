@@ -17,7 +17,7 @@ win:
       arch:
         - x64
   artifactName: ${productName}-Setup-${version}.${ext}
-  # icon: resources/icon.ico   # 跳蛛先生补好 icon 后取消这行注释
+  icon: resources/icon.ico
 nsis:
   oneClick: false
   perMachine: false
@@ -31,5 +31,5 @@ nsis:
   # 这里限定 zh_CN，让 addLangs 只 insert SimpChinese——朋友不论什么系统语言都看中文向导）
   installerLanguages:
     - zh_CN
-  # installerIcon: resources/icon.ico
-  # uninstallerIcon: resources/icon.ico
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
