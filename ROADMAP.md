@@ -47,7 +47,30 @@
 
 ---
 
-## P1 · 增强（待 P0 完工后启动）
+## P0.5 · 分发就绪（Distribution-Ready）
+
+**起因**：P0 完工 + 两轮 patch 后，跳蛛先生本地测试时发现"应用能跑，但分发给非技术朋友的体验有几个真坑"。这一阶段不加新功能，专门修复分发链路上的 UX 缺失。**朋友实际拿到 exe 前必须完成此阶段**。
+
+**清单**：
+
+- [ ] **开始菜单卸载快捷方式**：`electron-builder.yml` 加 `nsis.menuCategory: true`，让开始菜单生成"LiveLink"分组文件夹，里面同时有启动+卸载两个快捷方式。**当前问题：朋友找不到怎么卸载**。一行配置 + 重打包，5 分钟。
+- [ ] **应用图标**：跳蛛先生补好 `resources/icon.ico`（256×256 多分辨率），取消 `electron-builder.yml` 里 `win.icon` / `nsis.installerIcon` / `nsis.uninstallerIcon` 三行注释。**当前问题：图标是 Electron 太空船默认图**。
+- [ ] **NSIS 安装/卸载向导中文化**：`electron-builder.yml` 加 `nsis.language: "2052"`（简体中文）或者让向导跟随系统语言。**当前问题：默认英文向导**。
+- [ ] **SESSDATA safeStorage 加密**：用 Electron `safeStorage`（Win 上走 DPAPI）把 `auth.bilibili.sessdata` 加密存储到 `livelink-config.json`。**当前问题：明文 cookie，配置文件等于账号控制权，朋友传给别人即翻车**。
+- [ ] **NSIS 卸载时询问是否保留配置**：`nsis.deleteAppDataOnUninstall: false`（默认）+ 卸载向导加一步"是否删除我的房间号 / 规则 / cookie"选项。**当前问题：卸载后 `%APPDATA%\livelink-config.json` 残留**，朋友不知道这事。
+- [ ] **SmartScreen 蓝屏放行的图文截图**：`docs/主播使用说明.md` 里"如何放行"步骤目前是纯文字描述，补 2 张截图（蓝屏页 + "更多信息→仍要运行"按钮）。
+- [ ] **可选：代码签名**：淘宝 EV 证书 ~¥2k/年。**待跳蛛先生评估**——朋友量少时不值，多了再考虑。
+- [ ] **可选：自动更新**：electron-updater 接 GitHub Release / 自建静态服务器。**MVP 阶段不做**，朋友手动下新 exe 覆盖即可。
+
+**预估**：3-5 小时（除"代码签名"和"自动更新"两个可选项外）
+
+**交接文档**：`B站直播弹幕插件_P0.5_分发就绪_交接给_ClaudeCode.md`（P0 完整 review 后由 Cowork 写）
+
+**判定完成的标志**：把新 exe 发给一个**完全没碰过开发工具的朋友**，他能独立完成"装→用→卸载"全流程，不需要找跳蛛先生帮忙。
+
+---
+
+## P1 · 增强（待 P0.5 完工后启动）
 
 **功能清单**：
 
@@ -103,6 +126,8 @@
 | P0 启动前 | TTS 默认音色（建议先用 `zh-CN-XiaoxiaoNeural`，应用启动主播也可改） | 用推荐默认 |
 | P0 启动前 | Overlay 默认端口（建议 38501） | 用推荐默认 |
 | P0 完工后 | 是否需要代码签名（淘宝 EV 证书约 ¥2k/年） | MVP 不做，待朋友实际用了反馈杀软告警再说 |
+| P0.5 启动前 | 应用图标 icon.ico 设计 / 找朋友画 | 跳蛛先生美术背景，自己来快 |
+| P0.5 启动前 | SESSDATA 是否走 safeStorage 加密 | **强烈推荐**——分发前的硬门槛 |
 | P1 启动前 | 是否启用发弹幕能力（涉及登录态和账号风险） | 跳蛛先生评估 |
 | P2 启动前 | AI 回复用 Claude API 还是本地 LLM？ | 看主播朋友的预算和电脑配置 |
 | P3 启动前 | 是否真的要做抖音 / 虎牙？ | 看 P0-P2 反馈 |
