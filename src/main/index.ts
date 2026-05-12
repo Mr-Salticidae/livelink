@@ -42,6 +42,10 @@ adapter.on((e) => bus.emit('event', e))
 engine.attach()
 engine.setRules(config.getRules())
 
+// 原始事件无条件写日志（不经规则）。让 Logs 页反映直播间实际发生的所有事，
+// 不再只显示规则命中的。规则命中的 LogAction 还会在此之上叠加额外的日志。
+bus.on('event', (e) => log.writeRawEvent(e))
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1100,
@@ -79,7 +83,8 @@ function createWindow(): void {
   })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    // vite 多入口配置下根路径下没文件，要拼上具体入口路径
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/src/renderer/index.html')
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/src/renderer/index.html'))
   }

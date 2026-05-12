@@ -58,4 +58,47 @@ export class LogSink {
       text: renderedText
     })
   }
+
+  // 原始事件直接入日志（不经规则）。让 Logs 页反映直播间实际发生的所有事，
+  // 而不是只显示规则命中的。规则的 LogAction 仍可叠加写更详细的"命中"日志。
+  writeRawEvent(event: StandardEvent): void {
+    this.write({
+      timestamp: event.timestamp || Date.now(),
+      ruleId: null,
+      ruleName: null,
+      eventKind: event.kind,
+      uname: event.user.uname,
+      text: formatRawEventText(event)
+    })
+  }
+}
+
+// 把 StandardEvent 渲染成日志页能看的文字
+function formatRawEventText(e: StandardEvent): string {
+  const uname = e.user.uname || '匿名'
+  switch (e.kind) {
+    case 'viewer.enter':
+      return `${uname} 进入直播间`
+    case 'danmu.received':
+      return `${uname}: ${e.payload.content}`
+    case 'gift.received':
+      return `${uname} 送出 ${e.payload.giftName} × ${e.payload.num}`
+    case 'follow.received':
+      return `${uname} 关注了主播`
+    case 'guard.bought': {
+      const lvlText =
+        e.payload.guardLevel === 1
+          ? '总督'
+          : e.payload.guardLevel === 2
+            ? '提督'
+            : e.payload.guardLevel === 3
+              ? '舰长'
+              : '上舰'
+      return `${uname} 开通 ${lvlText} (¥${e.payload.price})`
+    }
+    case 'super.chat':
+      return `${uname} SC (¥${e.payload.price}): ${e.payload.message}`
+    default:
+      return uname
+  }
 }
