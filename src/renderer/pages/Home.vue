@@ -1,0 +1,137 @@
+<script setup lang="ts">
+import { ref, watch, computed } from 'vue'
+import { status, room, overlayUrl, isConnected, isBusy } from '../store'
+
+const roomInput = ref(room.value.id)
+const errorMsg = ref<string | null>(null)
+const copyToast = ref<string | null>(null)
+const showObsHelp = ref(false)
+
+watch(
+  () => room.value.id,
+  (id) => {
+    if (!roomInput.value) roomInput.value = id
+  }
+)
+
+const buttonLabel = computed(() => {
+  if (isBusy.value) return '处理中…'
+  return isConnected.value ? '停止' : '开始'
+})
+
+async function toggleConnection(): Promise<void> {
+  errorMsg.value = null
+  try {
+    if (isConnected.value) {
+      await window.api.stopConnection()
+    } else {
+      await window.api.startConnection(roomInput.value.trim())
+    }
+  } catch (err) {
+    errorMsg.value = (err as Error)?.message ?? '操作失败'
+  }
+}
+
+async function copyOverlayUrl(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(overlayUrl.value)
+    copyToast.value = '已复制 Overlay URL'
+    setTimeout(() => (copyToast.value = null), 1500)
+  } catch {
+    copyToast.value = '复制失败，手动选中链接复制'
+    setTimeout(() => (copyToast.value = null), 2500)
+  }
+}
+</script>
+
+<template>
+  <div class="mx-auto max-w-3xl space-y-6">
+    <header>
+      <h1 class="text-2xl font-semibold">首页</h1>
+      <p class="mt-1 text-sm text-slate-400">填上你的 B 站直播间号，点开始就行。</p>
+    </header>
+
+    <!-- 房间号 + 开始/停止 -->
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <label class="mb-2 block text-sm text-slate-300">直播间号或链接</label>
+      <div class="flex items-stretch gap-3">
+        <input
+          v-model="roomInput"
+          :disabled="isConnected || isBusy"
+          placeholder="比如 21452505 或 https://live.bilibili.com/21452505"
+          class="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-sky-500 focus:outline-none disabled:opacity-60"
+        />
+        <button
+          @click="toggleConnection"
+          :disabled="isBusy"
+          class="rounded-lg px-5 text-sm font-medium transition disabled:opacity-50"
+          :class="isConnected
+            ? 'bg-rose-500 text-white hover:bg-rose-400'
+            : 'bg-sky-500 text-white hover:bg-sky-400'"
+        >
+          {{ buttonLabel }}
+        </button>
+      </div>
+
+      <!-- 状态徽章 -->
+      <div class="mt-4 flex items-center gap-3 text-sm">
+        <span
+          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs"
+          :class="{
+            'bg-slate-800 text-slate-400': status.state === 'idle',
+            'bg-amber-500/20 text-amber-300': ['validating', 'connecting', 'reconnecting'].includes(status.state),
+            'bg-emerald-500/20 text-emerald-300': status.state === 'connected',
+            'bg-rose-500/20 text-rose-300': status.state === 'error'
+          }"
+        >
+          <span v-if="status.state === 'idle'">未连接</span>
+          <span v-else-if="status.state === 'validating'">校验房间号中…</span>
+          <span v-else-if="status.state === 'connecting'">连接中…</span>
+          <span v-else-if="status.state === 'connected'">已连接 · 房间 {{ status.roomId }}</span>
+          <span v-else-if="status.state === 'reconnecting'">断线重连中…</span>
+          <span v-else-if="status.state === 'error'">出错了</span>
+        </span>
+      </div>
+
+      <p
+        v-if="errorMsg || status.state === 'error'"
+        class="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200"
+      >
+        {{ errorMsg || (status.state === 'error' ? status.message : '') }}
+      </p>
+    </section>
+
+    <!-- Overlay URL 卡片 -->
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div class="mb-2 flex items-center justify-between">
+        <label class="text-sm text-slate-300">OBS 浏览器源 URL</label>
+        <span v-if="copyToast" class="text-xs text-emerald-400">{{ copyToast }}</span>
+      </div>
+      <div class="flex items-stretch gap-3">
+        <input
+          :value="overlayUrl"
+          readonly
+          class="flex-1 select-all rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-200"
+        />
+        <button
+          @click="copyOverlayUrl"
+          class="rounded-lg bg-slate-700 px-4 text-sm text-slate-100 hover:bg-slate-600"
+        >
+          复制
+        </button>
+      </div>
+
+      <button
+        class="mt-4 text-xs text-sky-400 hover:underline"
+        @click="showObsHelp = !showObsHelp"
+      >
+        {{ showObsHelp ? '收起' : '不会加 OBS 浏览器源？点这里看 3 步' }}
+      </button>
+      <ol v-if="showObsHelp" class="mt-3 space-y-2 rounded-lg bg-slate-950/50 p-4 text-sm text-slate-300">
+        <li>1. 打开 OBS Studio，在"来源"面板点 + 号 → 选"浏览器"。</li>
+        <li>2. 起个名字（比如"LiveLink Overlay"）→ 确定。</li>
+        <li>3. 把上面这个 URL 粘贴到"URL"栏 → 宽度 1920、高度 1080 → 确定。直播间一有动静，特效就会出现。</li>
+      </ol>
+    </section>
+  </div>
+</template>
