@@ -67,9 +67,14 @@ export class BilibiliAdapter implements PlatformAdapter {
   readonly platform = 'bilibili' as const
   private listener: MessageListener | null = null
   private listeners = new Set<EventListener>()
+  private connectedRoomId: number | null = null
 
   get isConnected(): boolean {
     return this.listener != null && !this.listener.closed
+  }
+
+  get currentRoomId(): number | null {
+    return this.connectedRoomId
   }
 
   on(cb: EventListener): () => void {
@@ -178,6 +183,7 @@ export class BilibiliAdapter implements PlatformAdapter {
     }
 
     this.listener = startListen(roomId, handler)
+    this.connectedRoomId = roomId
   }
 
   async disconnect(): Promise<void> {
@@ -185,6 +191,7 @@ export class BilibiliAdapter implements PlatformAdapter {
       this.listener.close()
     }
     this.listener = null
+    this.connectedRoomId = null
     this.listeners.clear()
   }
 }
