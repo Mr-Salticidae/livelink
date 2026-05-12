@@ -62,8 +62,16 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
   mainWindow.on('closed', () => {
+    // Bug 6 防御：即使 parent 关系出问题，也强制 destroy audioWindow，
+    // 避免它独立存活导致 window-all-closed 不触发，进程驻留
+    ttsPlayer.dispose()
+    ttsPlayer.setParentWindow(null)
     mainWindow = null
   })
+
+  // Bug 6 主修复：把 TTS 的 audioWindow 挂为主窗口子窗口，
+  // 主窗口关闭时 Electron 自动销毁所有子窗口 → window-all-closed 触发 → app.quit()
+  ttsPlayer.setParentWindow(mainWindow)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)

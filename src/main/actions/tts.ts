@@ -40,9 +40,23 @@ export class TTSPlayer {
   private processing = false
   private audioWindow: BrowserWindow | null = null
   private audioWindowReady: Promise<void> | null = null
+  // 把 audioWindow 作为 mainWindow 的子窗口创建，确保主窗口关闭时它一并销毁，
+  // 否则 Electron 的 window-all-closed 不触发，进程会驻留。
+  private parentWindow: BrowserWindow | null = null
 
   setConfig(config: Partial<TTSConfig>): void {
     this.config = { ...this.config, ...config }
+  }
+
+  setParentWindow(win: BrowserWindow | null): void {
+    this.parentWindow = win
+    // parent 变了的话，已存在的 audioWindow 必须 destroy 重建——
+    // Electron 不允许动态改 parent
+    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
+      this.audioWindow.destroy()
+    }
+    this.audioWindow = null
+    this.audioWindowReady = null
   }
 
   getConfig(): TTSConfig {
@@ -139,12 +153,14 @@ export class TTSPlayer {
     if (this.audioWindow && !this.audioWindow.isDestroyed() && this.audioWindowReady) {
       return this.audioWindowReady.then(() => this.audioWindow!)
     }
+    // 关键：parent 让此窗口在主窗口关闭时自动销毁，避免进程驻留
     this.audioWindow = new BrowserWindow({
       show: false,
       width: 1,
       height: 1,
       skipTaskbar: true,
       focusable: false,
+      parent: this.parentWindow ?? undefined,
       webPreferences: {
         sandbox: false,
         contextIsolation: true,
