@@ -8,11 +8,7 @@ files:
   - "out/preload/**"
   - "out/renderer/**"
   - "package.json"
-extraResources:
-  - from: "resources"
-    to: "resources"
-    filter:
-      - "**/*"
+  - "!**/.DS_Store"
 asarUnpack:
   - "resources/**"
 win:
@@ -20,14 +16,14 @@ win:
     - target: nsis
       arch:
         - x64
-  icon: resources/icon.ico
   artifactName: ${productName}-Setup-${version}.${ext}
+  # icon: resources/icon.ico   # 跳蛛先生补好 icon 后取消这行注释
 nsis:
   oneClick: false
   perMachine: false
-  allowToChangeInstallationDir: true
+  allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: LiveLink
-  installerIcon: resources/icon.ico
-  uninstallerIcon: resources/icon.ico
+  # installerIcon: resources/icon.ico
+  # uninstallerIcon: resources/icon.ico
