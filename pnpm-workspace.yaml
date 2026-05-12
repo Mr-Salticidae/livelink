@@ -1,3 +1,7 @@
+# Electron 打包要扁平 node_modules，否则 transitive deps（tiny-bilibili-ws、ws、axios 等）
+# 不会被 electron-builder 收进 asar，运行时报 Cannot find module
+nodeLinker: hoisted
+
 allowBuilds:
   electron: true
   esbuild: true
