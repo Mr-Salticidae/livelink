@@ -36,7 +36,9 @@ export const defaultRules: Rule[] = [
     trigger: 'gift.received',
     match: { kind: 'always' },
     cooldownSec: 0,
-    perUserCooldownSec: 5, // 同人 5 秒内合并播报，避免连击刷屏
+    // perUserCooldownSec=0：每个礼物都进 TTS 队列。靠 TTSPlayer 队列上限 20 自然限流。
+    // 真正的"窗口内合并累加"实现是 P1 任务（需要 engine 加聚合逻辑，工程量 1+ 小时）。
+    perUserCooldownSec: 0,
     actions: [
       { kind: 'log', template: { text: '{uname} 送出 {giftName} x{num}' } },
       { kind: 'tts', template: { text: '感谢{uname}送出的{giftName}{num}个' } },
