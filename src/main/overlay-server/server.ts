@@ -37,11 +37,7 @@ export class OverlayServer {
     }
 
     // 主入口：/ 和 /overlay 都返回 overlay 单页
-    const sendOverlay = (
-      _req: express.Request,
-      res: express.Response,
-      next: express.NextFunction
-    ): void => {
+    const sendOverlay = (_req: express.Request, res: express.Response): void => {
       if (existsSync(overlayHtmlPath)) {
         res.sendFile(overlayHtmlPath)
         return
@@ -52,7 +48,6 @@ export class OverlayServer {
         .send(
           `<!doctype html><meta charset="utf-8"><body style="background:#0f172a;color:#e2e8f0;font-family:sans-serif;padding:32px"><h2>Overlay 还没构建</h2><p>请先在项目根运行 <code>pnpm build</code>，再启动应用。</p></body>`
         )
-      next()
     }
     app.get('/', sendOverlay)
     app.get('/overlay', sendOverlay)
