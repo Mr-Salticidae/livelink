@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"D:\\\\B站直播弹幕+礼物插件\\\\\")",
+      "PowerShell(node --version)",
+      "PowerShell(pnpm --version)"
+    ]
+  }
+}

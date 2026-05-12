@@ -1,0 +1,33 @@
+appId: io.jspider.livelink
+productName: LiveLink
+directories:
+  output: out/dist
+  buildResources: resources
+files:
+  - "out/main/**"
+  - "out/preload/**"
+  - "out/renderer/**"
+  - "package.json"
+extraResources:
+  - from: "resources"
+    to: "resources"
+    filter:
+      - "**/*"
+asarUnpack:
+  - "resources/**"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+  artifactName: ${productName}-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDir: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: LiveLink
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico

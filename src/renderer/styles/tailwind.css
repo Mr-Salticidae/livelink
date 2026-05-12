@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #app {
+    height: 100%;
+  }
+  body {
+    -webkit-font-smoothing: antialiased;
+    font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  }
+}

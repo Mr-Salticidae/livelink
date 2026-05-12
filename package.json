@@ -1,0 +1,54 @@
+{
+  "name": "livelink",
+  "version": "0.1.0",
+  "description": "B 站直播弹幕+礼物插件 — 给非技术主播朋友的桌面助手",
+  "main": "./out/main/index.js",
+  "author": "跳蛛先生",
+  "license": "MIT",
+  "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-builder",
+      "esbuild",
+      "protobufjs"
+    ]
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
+    "preview": "electron-vite preview",
+    "package": "electron-vite build && electron-builder --win --config electron-builder.yml",
+    "package:dir": "electron-vite build && electron-builder --win --dir --config electron-builder.yml"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "blive-message-listener": "^0.5.0",
+    "edge-tts-universal": "^1.0.0",
+    "electron-store": "^8.2.0",
+    "express": "^4.19.2",
+    "mitt": "^3.0.1",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^1.0.1",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.7",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "autoprefixer": "^10.4.19",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.2.0",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11",
+    "vue": "^3.4.27",
+    "vue-tsc": "^2.0.19"
+  }
+}

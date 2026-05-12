@@ -1,0 +1,27 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
+  "include": [
+    "src/renderer/**/*",
+    "src/renderer/**/*.vue",
+    "src/overlay/**/*",
+    "src/overlay/**/*.vue",
+    "src/preload/index.d.ts",
+    "src/shared/**/*"
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "strict": true,
+    "jsx": "preserve",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["src/renderer/*"],
+      "@overlay/*": ["src/overlay/*"],
+      "@shared/*": ["src/shared/*"]
+    }
+  }
+}
