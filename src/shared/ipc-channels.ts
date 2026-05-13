@@ -40,6 +40,7 @@ export const IpcChannels = {
   DanmuOverlayPinnedUpdate: 'danmu-overlay:pinned-update', // 主→子窗 pinned 状态推送
   DanmuOverlayGetSettings: 'danmu-overlay:get-settings',
   DanmuOverlayEvent: 'danmu-overlay:event', // 主→子窗 push 弹幕 / 礼物事件
+  DanmuOverlayRoomStats: 'danmu-overlay:room-stats', // 主→子窗 push 在线人数
 
   // 日志（主→渲染 push）
   LogAppend: 'log:append',

@@ -192,6 +192,20 @@ export class DanmuOverlayWindow {
 
   private handleEvent(e: StandardEvent): void {
     if (!this.win || this.win.isDestroyed()) return
+
+    // 在线人数（room.stats）单独推一个 channel，更新标题栏右侧的"X 人看过"
+    if (e.kind === 'room.stats') {
+      try {
+        this.win.webContents.send(IpcChannels.DanmuOverlayRoomStats, {
+          watchedNum: e.payload.watchedNum,
+          watchedText: e.payload.watchedText
+        })
+      } catch (err) {
+        console.error('[DanmuOverlayWindow] send room-stats failed', err)
+      }
+      return
+    }
+
     if (e.kind !== 'danmu.received' && e.kind !== 'gift.received') return
     const item: DanmuOverlayPushItem = {
       id: `${e.timestamp}-${Math.random().toString(36).slice(2, 8)}`,

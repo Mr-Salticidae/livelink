@@ -19,6 +19,7 @@ const items = ref<DanmuItem[]>([])
 const scrollEl = ref<HTMLDivElement | null>(null)
 const settings = ref({ opacity: 0.85, fontSize: 14 })
 const pinned = ref<boolean>(false)
+const watchedText = ref<string>('') // B 站"X 人看过"文本，未连接前空
 
 const uid = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
@@ -42,6 +43,7 @@ function togglePin(): void {
 
 let unsubEvent: (() => void) | null = null
 let unsubPinned: (() => void) | null = null
+let unsubRoomStats: (() => void) | null = null
 
 onMounted(() => {
   // preload 暴露的 onDanmuOverlayEvent 订阅主进程过滤后的弹幕 / 礼物事件
@@ -53,6 +55,12 @@ onMounted(() => {
   if (api?.onDanmuOverlayPinned) {
     unsubPinned = api.onDanmuOverlayPinned((s) => {
       pinned.value = s.pinned
+    })
+  }
+  // 监听在线人数推送（B 站 WATCHED_CHANGE，几秒一次）
+  if (api?.onDanmuOverlayRoomStats) {
+    unsubRoomStats = api.onDanmuOverlayRoomStats((stats) => {
+      watchedText.value = stats.watchedText
     })
   }
   // 初始化时拉一次设置（opacity / fontSize）+ pinned 状态
@@ -67,6 +75,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   unsubEvent?.()
   unsubPinned?.()
+  unsubRoomStats?.()
 })
 </script>
 
@@ -79,7 +88,11 @@ onBeforeUnmount(() => {
     <!-- 标题栏：未钉住时可拖动；钉住后只剩图钉按钮可点 -->
     <header class="title-bar" :class="{ 'title-bar-pinned': pinned }">
       <span v-if="!pinned" class="title">LiveLink · 弹幕</span>
-      <span v-else class="title pinned-hint">已钉住 · 鼠标穿透 · 到主窗口解开</span>
+      <span v-else class="title pinned-hint" title="鼠标穿透中 · 到主窗口解开">🔒 已钉住</span>
+      <!-- 在线人数（B 站"X 人看过"）。窗口窄时会被 ellipsis 截掉，但 watched 文本一般 < 10 字符 -->
+      <span v-if="watchedText" class="watched" :title="`累计 ${watchedText} 人看过`">
+        👁 {{ watchedText }}
+      </span>
       <div class="title-buttons">
         <button
           class="pin-btn"
@@ -153,8 +166,25 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: #94a3b8;
   letter-spacing: 0.04em;
+  /* 窗口缩到最小时禁止换行，超出用省略号。flex:1 + min-width:0 让 title 在剩余空间内伸缩 */
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pinned-hint { color: #fbbf24; font-weight: 500; }
+.watched {
+  /* 在线人数徽章：标题栏中段，不随标题伸缩 */
+  flex-shrink: 0;
+  margin: 0 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.12);
+  border-radius: 10px;
+  white-space: nowrap;
+}
 .title-buttons {
   display: flex;
   align-items: center;
@@ -207,9 +237,29 @@ onBeforeUnmount(() => {
 .line {
   line-height: 1.45;
   word-break: break-word;
-  padding: 1px 0;
+  padding: 2px 6px;
+  margin: 0 -6px;
+  border-radius: 4px;
+  /* 新弹幕进场动画：黄色高亮 → 2.4s 内淡出到无背景。
+     forwards 保留终态（透明），避免动画结束后回到 50% 状态 */
+  animation: lineHighlight 2.4s ease-out forwards;
 }
 .line + .line { margin-top: 1px; }
+
+@keyframes lineHighlight {
+  0% { background-color: rgba(253, 224, 71, 0.55); }   /* amber-300 ~55% */
+  20% { background-color: rgba(253, 224, 71, 0.45); }
+  100% { background-color: rgba(253, 224, 71, 0); }
+}
+/* 礼物高亮用金色更暖 */
+.line-gift {
+  animation: giftLineHighlight 2.4s ease-out forwards;
+}
+@keyframes giftLineHighlight {
+  0% { background-color: rgba(251, 191, 36, 0.6); }
+  20% { background-color: rgba(251, 191, 36, 0.5); }
+  100% { background-color: rgba(251, 191, 36, 0); }
+}
 
 .uname {
   color: #7dd3fc;

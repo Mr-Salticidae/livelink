@@ -77,6 +77,16 @@ const api = {
     ipcRenderer.on(IpcChannels.DanmuOverlayEvent, handler)
     return () => ipcRenderer.removeListener(IpcChannels.DanmuOverlayEvent, handler)
   },
+  onDanmuOverlayRoomStats: (
+    cb: (stats: { watchedNum: number; watchedText: string }) => void
+  ) => {
+    const handler = (
+      _: IpcRendererEvent,
+      stats: { watchedNum: number; watchedText: string }
+    ): void => cb(stats)
+    ipcRenderer.on(IpcChannels.DanmuOverlayRoomStats, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.DanmuOverlayRoomStats, handler)
+  },
 
   // 规则
   ruleList: () => ipcRenderer.invoke(IpcChannels.RuleList),

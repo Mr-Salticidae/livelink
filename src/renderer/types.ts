@@ -113,6 +113,9 @@ export interface ApiSurface {
   onDanmuOverlayStatus: (cb: (s: { enabled: boolean; pinned: boolean }) => void) => () => void
   onDanmuOverlayPinned: (cb: (s: { pinned: boolean }) => void) => () => void
   onDanmuOverlayEvent: (cb: (item: unknown) => void) => () => void
+  onDanmuOverlayRoomStats: (
+    cb: (stats: { watchedNum: number; watchedText: string }) => void
+  ) => () => void
 
   ruleList: () => Promise<Rule[]>
   ruleUpsert: (rule: Rule) => Promise<Rule[]>

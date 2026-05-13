@@ -259,6 +259,21 @@ export class BilibiliAdapter implements PlatformAdapter {
         })
       },
 
+      // 直播间累计看过人数变化（B 站直播间顶部"X 人看过"）。
+      // 高频推送（每数秒一次），不进 Logs 页 / 规则引擎，仅供弹幕悬浮窗等 UI 实时刷新
+      onWatchedChange: (msg) => {
+        this.emit({
+          kind: 'room.stats',
+          platform: 'bilibili',
+          timestamp: msg.timestamp,
+          user: { uid: '0', uname: '' }, // room.stats 没有具体 user，占位
+          payload: {
+            watchedNum: msg.body.num,
+            watchedText: msg.body.text_small
+          }
+        })
+      },
+
       // 诊断：所有原始 cmd 计入直方图。SESSDATA 填了仍收不到弹幕时，看主进程 console
       // 的 30s 直方图就能判断 B 站到底推了什么 cmd（DANMU_MSG 是否在列）
       //

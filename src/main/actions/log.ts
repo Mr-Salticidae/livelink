@@ -62,6 +62,8 @@ export class LogSink {
   // 原始事件直接入日志（不经规则）。让 Logs 页反映直播间实际发生的所有事，
   // 而不是只显示规则命中的。规则的 LogAction 仍可叠加写更详细的"命中"日志。
   writeRawEvent(event: StandardEvent): void {
+    // room.stats 高频（每几秒），不进日志免得刷屏淹掉真正的事件
+    if (event.kind === 'room.stats') return
     this.write({
       timestamp: event.timestamp || Date.now(),
       ruleId: null,

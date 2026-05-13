@@ -9,6 +9,7 @@ export type EventKind =
   | 'guard.bought'
   | 'super.chat'
   | 'blindbox.opened'
+  | 'room.stats'
 
 export interface UserInfo {
   uid: string
@@ -84,6 +85,14 @@ export interface BlindBoxPayload {
   netGainPerBox: number // 净盈亏 = reward 总价 - cost（RMB）
 }
 
+// 直播间统计（在线人数 / 看过人数等）。B 站 WATCHED_CHANGE 推送，主播能看到"X 人看过"。
+// 不属于"用户行为"事件，不进 Logs 页（log.writeRawEvent 会跳过）；不进规则引擎触发。
+// 用 StandardEvent 通道传递只是复用 bus，避免新增 channel。user 字段是空占位
+export interface RoomStatsPayload {
+  watchedNum: number // 累计入场人数（unique）
+  watchedText: string // B 站格式化输出："1.2万"
+}
+
 export type StandardEvent =
   | { kind: 'viewer.enter'; platform: string; timestamp: number; user: UserInfo; payload: ViewerEnterPayload }
   | { kind: 'danmu.received'; platform: string; timestamp: number; user: UserInfo; payload: DanmuPayload }
@@ -92,6 +101,7 @@ export type StandardEvent =
   | { kind: 'guard.bought'; platform: string; timestamp: number; user: UserInfo; payload: GuardBuyPayload }
   | { kind: 'super.chat'; platform: string; timestamp: number; user: UserInfo; payload: SuperChatPayload }
   | { kind: 'blindbox.opened'; platform: string; timestamp: number; user: UserInfo; payload: BlindBoxPayload }
+  | { kind: 'room.stats'; platform: string; timestamp: number; user: UserInfo; payload: RoomStatsPayload }
 
 export type EventListener = (e: StandardEvent) => void
 
