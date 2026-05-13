@@ -13,6 +13,16 @@ export interface BilibiliAuth {
   buvid: string // buvid3，可选
 }
 
+// 互动投票上次使用参数
+export interface VotingPreset {
+  title: string
+  options: { key: string; label: string }[]
+  durationSec: number
+  requireAnchorFansMedal: boolean
+  minFansMedalLevel: number
+  allowChangeVote: boolean
+}
+
 // 弹幕抽奖的上次使用参数，主播下次开新一轮时回填表单
 export interface LotteryPreset {
   prize: string
@@ -52,6 +62,7 @@ export interface AppConfigSchema {
   danmuOverlay: DanmuOverlayConfig
   danmuBoard: DanmuBoardConfig
   lottery: LotteryPreset
+  voting: VotingPreset
 }
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
@@ -79,6 +90,18 @@ const DEFAULT_LOTTERY_PRESET: LotteryPreset = {
   minFansMedalLevel: 0
 }
 
+const DEFAULT_VOTING_PRESET: VotingPreset = {
+  title: '晚饭吃什么？',
+  options: [
+    { key: '1', label: '米饭' },
+    { key: '2', label: '面条' }
+  ],
+  durationSec: 60,
+  requireAnchorFansMedal: false,
+  minFansMedalLevel: 0,
+  allowChangeVote: true
+}
+
 const defaults: AppConfigSchema = {
   room: { id: '' },
   rules: defaultRules,
@@ -88,7 +111,8 @@ const defaults: AppConfigSchema = {
   auth: { bilibili: { sessdata: '', uid: '', buvid: '' } },
   danmuOverlay: { ...DEFAULT_DANMU_OVERLAY },
   danmuBoard: { ...DEFAULT_DANMU_BOARD },
-  lottery: { ...DEFAULT_LOTTERY_PRESET }
+  lottery: { ...DEFAULT_LOTTERY_PRESET },
+  voting: { ...DEFAULT_VOTING_PRESET }
 }
 
 export class AppConfig {
@@ -244,6 +268,26 @@ export class AppConfig {
     const next: DanmuBoardConfig = { ...this.getDanmuBoard(), ...patch }
     this.setDanmuBoard(next)
     return next
+  }
+
+  // 互动投票 preset
+  getVotingPreset(): VotingPreset {
+    const stored = this.store.get('voting') as VotingPreset | undefined
+    if (!stored) return { ...DEFAULT_VOTING_PRESET, options: [...DEFAULT_VOTING_PRESET.options] }
+    return {
+      title: stored.title ?? DEFAULT_VOTING_PRESET.title,
+      options: Array.isArray(stored.options) && stored.options.length > 0
+        ? stored.options.map((o) => ({ key: o.key, label: o.label }))
+        : [...DEFAULT_VOTING_PRESET.options],
+      durationSec: stored.durationSec ?? DEFAULT_VOTING_PRESET.durationSec,
+      requireAnchorFansMedal:
+        stored.requireAnchorFansMedal ?? DEFAULT_VOTING_PRESET.requireAnchorFansMedal,
+      minFansMedalLevel: stored.minFansMedalLevel ?? DEFAULT_VOTING_PRESET.minFansMedalLevel,
+      allowChangeVote: stored.allowChangeVote ?? DEFAULT_VOTING_PRESET.allowChangeVote
+    }
+  }
+  setVotingPreset(preset: VotingPreset): void {
+    this.store.set('voting', preset)
   }
 
   // 弹幕抽奖 preset

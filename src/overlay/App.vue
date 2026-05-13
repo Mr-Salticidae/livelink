@@ -9,6 +9,8 @@ import LotteryCard from './components/LotteryCard.vue'
 import LotteryResultCard from './components/LotteryResultCard.vue'
 import DanmuBoard from './components/DanmuBoard.vue'
 import SuperChatBanner from './components/SuperChatBanner.vue'
+import VotingCard from './components/VotingCard.vue'
+import VotingResultCard from './components/VotingResultCard.vue'
 
 type BoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 interface BoardConfig {
@@ -73,6 +75,23 @@ interface LotteryResultState {
   participantCount: number
 }
 
+interface VotingOption { key: string; label: string }
+interface VotingRunningState {
+  title: string
+  options: VotingOption[]
+  endsAt: number
+  counts: Record<string, number>
+  totalVotes: number
+}
+interface VotingResultState {
+  id: string
+  title: string
+  options: VotingOption[]
+  counts: Record<string, number>
+  totalVotes: number
+  winnerKey: string | null
+}
+
 interface SuperChatItem {
   id: string
   uname: string
@@ -101,6 +120,10 @@ const activeLotteryResult = ref<LotteryResultState | null>(null)
 const topSuperChats = ref<SuperChatItem[]>([])
 const legendarySuperChat = ref<SuperChatItem | null>(null)
 const MAX_TOP_SC = 2
+const VOTING_RESULT_MS = 9_000
+
+const activeVoting = ref<VotingRunningState | null>(null)
+const activeVotingResult = ref<VotingResultState | null>(null)
 
 // OBS 弹幕信息板：默认关闭，主进程通过 danmu.board.config 推送配置
 const danmuBoardConfig = ref<BoardConfig>({
@@ -238,6 +261,59 @@ onMounted(() => {
 
   on<OverlayPayload>('lottery.cancelled', () => {
     activeLottery.value = null
+  })
+
+  // 互动投票：start / tick / result / cancelled
+  on<OverlayPayload>('voting.start', (msg) => {
+    const x = msg.extra as
+      | { title?: string; options?: VotingOption[]; endsAt?: number; counts?: Record<string, number> }
+      | undefined
+    if (!x?.endsAt || !Array.isArray(x?.options)) return
+    activeVotingResult.value = null
+    activeVoting.value = {
+      title: x.title ?? '',
+      options: x.options,
+      endsAt: x.endsAt,
+      counts: x.counts ?? {},
+      totalVotes: 0
+    }
+  })
+  on<OverlayPayload>('voting.tick', (msg) => {
+    const x = msg.extra as { counts?: Record<string, number>; totalVotes?: number } | undefined
+    if (!activeVoting.value || !x?.counts) return
+    activeVoting.value = {
+      ...activeVoting.value,
+      counts: x.counts,
+      totalVotes: x.totalVotes ?? 0
+    }
+  })
+  on<OverlayPayload>('voting.result', (msg) => {
+    const x = msg.extra as
+      | {
+          title?: string
+          options?: VotingOption[]
+          counts?: Record<string, number>
+          totalVotes?: number
+          winnerKey?: string | null
+        }
+      | undefined
+    activeVoting.value = null
+    if (!x || !Array.isArray(x.options)) return
+    const result: VotingResultState = {
+      id: uid(),
+      title: x.title ?? '',
+      options: x.options,
+      counts: x.counts ?? {},
+      totalVotes: x.totalVotes ?? 0,
+      winnerKey: x.winnerKey ?? null
+    }
+    activeVotingResult.value = result
+    window.setTimeout(() => {
+      if (activeVotingResult.value?.id === result.id) activeVotingResult.value = null
+    }, VOTING_RESULT_MS)
+  })
+  on<OverlayPayload>('voting.cancelled', () => {
+    activeVoting.value = null
   })
 
   // SuperChat 横幅：系统级 broadcast，不依赖规则引擎。按价位放顶部 / 中央
@@ -394,6 +470,35 @@ onMounted(() => {
         :price="sc.price"
         :avatar="sc.avatar"
         :duration-sec="sc.durationSec"
+      />
+    </div>
+
+    <!-- 投票进行中卡片（屏幕中央偏上） -->
+    <div
+      v-if="activeVoting"
+      class="absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2"
+    >
+      <VotingCard
+        :title="activeVoting.title"
+        :options="activeVoting.options"
+        :ends-at="activeVoting.endsAt"
+        :counts="activeVoting.counts"
+        :total-votes="activeVoting.totalVotes"
+      />
+    </div>
+
+    <!-- 投票结果卡（屏幕中央） -->
+    <div
+      v-if="activeVotingResult"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+    >
+      <VotingResultCard
+        :key="activeVotingResult.id"
+        :title="activeVotingResult.title"
+        :options="activeVotingResult.options"
+        :counts="activeVotingResult.counts"
+        :total-votes="activeVotingResult.totalVotes"
+        :winner-key="activeVotingResult.winnerKey"
       />
     </div>
 

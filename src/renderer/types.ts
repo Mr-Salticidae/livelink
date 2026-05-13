@@ -86,6 +86,38 @@ export interface DanmuBoardConfig {
   showGift: boolean
 }
 
+// 互动投票
+export interface VotingOption {
+  key: string
+  label: string
+}
+export interface VotingConfig {
+  title: string
+  options: VotingOption[]
+  durationSec: number
+  requireAnchorFansMedal: boolean
+  minFansMedalLevel: number
+  allowChangeVote: boolean
+}
+export type VotingState =
+  | { phase: 'idle' }
+  | {
+      phase: 'running'
+      config: VotingConfig
+      startedAt: number
+      endsAt: number
+      counts: Record<string, number>
+      totalVotes: number
+    }
+  | {
+      phase: 'done'
+      config: VotingConfig
+      endedAt: number
+      counts: Record<string, number>
+      totalVotes: number
+      winnerKey: string | null
+    }
+
 // 弹幕抽奖
 export interface LotteryConfig {
   prize: string
@@ -174,6 +206,15 @@ export interface ApiSurface {
   lotteryGetPreset: () => Promise<LotteryConfig>
   lotterySavePreset: (preset: LotteryConfig) => Promise<LotteryConfig>
   onLotteryStatus: (cb: (s: LotteryState) => void) => () => void
+
+  // 互动投票
+  votingStart: (config: VotingConfig) => Promise<VotingState>
+  votingCancel: () => Promise<VotingState>
+  votingEndNow: () => Promise<VotingState>
+  votingReset: () => Promise<VotingState>
+  votingStatus: () => Promise<VotingState>
+  votingGetPreset: () => Promise<VotingConfig>
+  onVotingStatus: (cb: (s: VotingState) => void) => () => void
 
   ruleList: () => Promise<Rule[]>
   ruleUpsert: (rule: Rule) => Promise<Rule[]>

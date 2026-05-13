@@ -8,7 +8,8 @@ import type {
   OverlayState,
   Rule,
   TTSConfig,
-  VoiceOption
+  VoiceOption,
+  VotingState
 } from './types'
 
 export const status = ref<ConnectionStatus>({ state: 'idle' })
@@ -25,6 +26,7 @@ export const logs = ref<LogEntry[]>([])
 export const danmuOverlayEnabled = ref<boolean>(false)
 export const danmuOverlayPinned = ref<boolean>(false)
 export const lotteryState = ref<LotteryState>({ phase: 'idle' })
+export const votingState = ref<VotingState>({ phase: 'idle' })
 export const danmuBoard = ref<DanmuBoardConfig>({
   enabled: false,
   position: 'bottom-left',
@@ -33,7 +35,7 @@ export const danmuBoard = ref<DanmuBoardConfig>({
   showGift: true
 })
 
-export type PageKey = 'home' | 'rules' | 'tts' | 'lottery' | 'logs'
+export type PageKey = 'home' | 'rules' | 'tts' | 'lottery' | 'voting' | 'logs'
 export const currentPage = ref<PageKey>('home')
 
 export const enabledRuleCount = computed(() => rules.value.filter((r) => r.enabled).length)
@@ -110,6 +112,8 @@ export async function loadInitialData(): Promise<void> {
 
   // 抽奖初始化
   await initLottery()
+  // 投票初始化
+  await initVoting()
 
   // OBS 弹幕信息板配置初始化
   try {
@@ -155,6 +159,17 @@ export async function initLottery(): Promise<void> {
   }
   window.api.onLotteryStatus((s) => {
     lotteryState.value = s
+  })
+}
+
+export async function initVoting(): Promise<void> {
+  try {
+    votingState.value = await window.api.votingStatus()
+  } catch (err) {
+    console.error('votingStatus failed', err)
+  }
+  window.api.onVotingStatus((s) => {
+    votingState.value = s
   })
 }
 

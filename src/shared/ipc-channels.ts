@@ -57,6 +57,15 @@ export const IpcChannels = {
   LotteryGetPreset: 'lottery:get-preset',
   LotterySavePreset: 'lottery:save-preset',
 
+  // 互动投票
+  VotingStart: 'voting:start',
+  VotingCancel: 'voting:cancel',
+  VotingEndNow: 'voting:end-now',
+  VotingReset: 'voting:reset',
+  VotingStatus: 'voting:status',
+  VotingStatusUpdate: 'voting:status-update',
+  VotingGetPreset: 'voting:get-preset',
+
   // 日志（主→渲染 push）
   LogAppend: 'log:append',
   LogRecent: 'log:recent',

@@ -10,6 +10,7 @@ import type { LogSink, LogEntry } from './actions/log'
 import type { Rule } from './rules/types'
 import type { DanmuOverlayWindow } from './danmu-overlay-window'
 import type { LotteryService, LotteryConfig } from './services/lottery'
+import type { VotingService, VotingConfig } from './services/voting'
 import { toFriendlyError } from './errors/friendly'
 
 export interface IpcDeps {
@@ -21,6 +22,7 @@ export interface IpcDeps {
   overlayController: OverlayController
   danmuOverlay: DanmuOverlayWindow
   lottery: LotteryService
+  voting: VotingService
   config: AppConfig
   log: LogSink
   status: { current: ConnectionStatus }
@@ -35,6 +37,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     overlayController,
     danmuOverlay,
     lottery,
+    voting,
     config,
     log,
     status
@@ -248,6 +251,34 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   // 抽奖状态变化推到主窗口（参与人数 / 倒计时结束 / 结果出来）
   lottery.onStatusChange((s) => {
     deps.getMainWindow()?.webContents.send(IpcChannels.LotteryStatusUpdate, s)
+  })
+
+  // ─── 互动投票 ──────────────────────────────────────────────
+  ipcMain.handle(IpcChannels.VotingStart, (_e, c: VotingConfig) => {
+    const r = voting.start(c)
+    if (!r.ok) throw new Error(r.error)
+    config.setVotingPreset(c)
+    return voting.getState()
+  })
+  ipcMain.handle(IpcChannels.VotingCancel, () => {
+    const r = voting.cancel()
+    if (!r.ok) throw new Error(r.error)
+    return voting.getState()
+  })
+  ipcMain.handle(IpcChannels.VotingEndNow, () => {
+    const r = voting.endNow()
+    if (!r.ok) throw new Error(r.error)
+    return voting.getState()
+  })
+  ipcMain.handle(IpcChannels.VotingReset, () => {
+    voting.reset()
+    return voting.getState()
+  })
+  ipcMain.handle(IpcChannels.VotingStatus, () => voting.getState())
+  ipcMain.handle(IpcChannels.VotingGetPreset, () => config.getVotingPreset())
+
+  voting.onStatusChange((s) => {
+    deps.getMainWindow()?.webContents.send(IpcChannels.VotingStatusUpdate, s)
   })
 
   // ─── 规则 ────────────────────────────────────────────────────

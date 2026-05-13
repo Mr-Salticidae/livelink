@@ -116,6 +116,20 @@ const api = {
     return () => ipcRenderer.removeListener(IpcChannels.LotteryStatusUpdate, handler)
   },
 
+  // 互动投票
+  votingStart: (config: unknown) =>
+    ipcRenderer.invoke(IpcChannels.VotingStart, cleanForIpc(config)),
+  votingCancel: () => ipcRenderer.invoke(IpcChannels.VotingCancel),
+  votingEndNow: () => ipcRenderer.invoke(IpcChannels.VotingEndNow),
+  votingReset: () => ipcRenderer.invoke(IpcChannels.VotingReset),
+  votingStatus: () => ipcRenderer.invoke(IpcChannels.VotingStatus),
+  votingGetPreset: () => ipcRenderer.invoke(IpcChannels.VotingGetPreset),
+  onVotingStatus: (cb: (s: unknown) => void) => {
+    const handler = (_: IpcRendererEvent, s: unknown): void => cb(s)
+    ipcRenderer.on(IpcChannels.VotingStatusUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.VotingStatusUpdate, handler)
+  },
+
   // 日志
   logRecent: (limit?: number) => ipcRenderer.invoke(IpcChannels.LogRecent, limit),
   logClear: () => ipcRenderer.invoke(IpcChannels.LogClear),
