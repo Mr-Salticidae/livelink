@@ -32,6 +32,7 @@ export type RuleMatch =
   | { kind: 'always' }
   | { kind: 'keyword'; keywords: string[]; mode: 'any' | 'all' }
   | { kind: 'regex'; pattern: string }
+  | { kind: 'fans_medal'; minLevel: number; requireAnchor: boolean }
 
 export interface Rule {
   id: string

@@ -56,13 +56,28 @@ export async function resolveRoomId(input: string | number): Promise<{ roomId: n
   return { roomId: json.data.room_id, isLive: json.data.live_status === 1 }
 }
 
-function toUserInfo(u: User): UserInfo {
+function toUserInfo(u: User, currentRoomId: number | null): UserInfo {
+  const badge = u.badge
+  // is_same_room 由 lib 自己算好（badge.anchor.is_same_room 可能 undefined 在老版本里），
+  // 兜底比对 anchor.room_id === currentRoomId
+  const isAnchor =
+    badge?.anchor?.is_same_room ??
+    (currentRoomId != null && badge?.anchor?.room_id === currentRoomId) ??
+    false
   return {
     uid: String(u.uid),
     uname: u.uname,
     avatar: u.face,
     isAdmin: u.identity?.room_admin ?? false,
-    guardLevel: u.identity?.guard_level ?? 0
+    guardLevel: u.identity?.guard_level ?? 0,
+    fansMedal: badge
+      ? {
+          level: badge.level ?? 0,
+          name: badge.name ?? '',
+          isAnchor: Boolean(isAnchor),
+          isLighted: badge.active ?? false
+        }
+      : undefined
   }
 }
 
@@ -172,7 +187,7 @@ export class BilibiliAdapter implements PlatformAdapter {
           kind: 'danmu.received',
           platform: 'bilibili',
           timestamp: msg.timestamp,
-          user: toUserInfo(msg.body.user),
+          user: toUserInfo(msg.body.user, roomId),
           payload: { content: msg.body.content }
         })
       },
@@ -185,7 +200,7 @@ export class BilibiliAdapter implements PlatformAdapter {
             kind: 'viewer.enter',
             platform: 'bilibili',
             timestamp: msg.body.timestamp ?? msg.timestamp,
-            user: toUserInfo(msg.body.user),
+            user: toUserInfo(msg.body.user, roomId),
             payload: {}
           })
         } else if (action === 'follow') {
@@ -193,7 +208,7 @@ export class BilibiliAdapter implements PlatformAdapter {
             kind: 'follow.received',
             platform: 'bilibili',
             timestamp: msg.body.timestamp ?? msg.timestamp,
-            user: toUserInfo(msg.body.user),
+            user: toUserInfo(msg.body.user, roomId),
             payload: {}
           })
         }
@@ -205,7 +220,7 @@ export class BilibiliAdapter implements PlatformAdapter {
           kind: 'gift.received',
           platform: 'bilibili',
           timestamp: msg.timestamp,
-          user: toUserInfo(msg.body.user),
+          user: toUserInfo(msg.body.user, roomId),
           payload: {
             giftId: msg.body.gift_id,
             giftName: msg.body.gift_name,
@@ -221,7 +236,7 @@ export class BilibiliAdapter implements PlatformAdapter {
           kind: 'guard.bought',
           platform: 'bilibili',
           timestamp: msg.timestamp,
-          user: toUserInfo(msg.body.user),
+          user: toUserInfo(msg.body.user, roomId),
           payload: {
             guardLevel: msg.body.guard_level,
             price: msg.body.price,
@@ -235,7 +250,7 @@ export class BilibiliAdapter implements PlatformAdapter {
           kind: 'super.chat',
           platform: 'bilibili',
           timestamp: msg.timestamp,
-          user: toUserInfo(msg.body.user),
+          user: toUserInfo(msg.body.user, roomId),
           payload: {
             message: msg.body.content,
             price: msg.body.price,

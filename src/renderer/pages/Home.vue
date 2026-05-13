@@ -8,9 +8,41 @@ import {
   overlayRetrying,
   isConnected,
   isBusy,
-  retryOverlay
+  retryOverlay,
+  rules
 } from '../store'
+import type { Rule } from '../types'
 import BilibiliAuthAdvanced from '../components/BilibiliAuthAdvanced.vue'
+
+// Home 页快捷开关：直接读 / 写规则 store 里默认那三条
+// 用户改名 / 删除后这些开关会变成"未配置"（toggle 仍可点，但什么也不会 toggle）。
+// 跳蛛先生：保留默认规则 id 是基础前提，不要重命名。
+const QUICK_TOGGLES: Array<{ id: string; label: string; hint: string }> = [
+  { id: 'welcome.default', label: '欢迎进房', hint: '观众进入直播间时播报欢迎' },
+  { id: 'reply.hello', label: '关键词回复', hint: '观众发"你好/hi/哈喽"自动回复' },
+  { id: 'gift.thanks.default', label: '礼物感谢', hint: '收到礼物时 TTS 致谢 + 特效' }
+]
+
+const quickToggleError = ref<string | null>(null)
+
+function ruleById(id: string): Rule | undefined {
+  return rules.value.find((r) => r.id === id)
+}
+
+async function toggleQuickRule(id: string): Promise<void> {
+  const rule = ruleById(id)
+  if (!rule) {
+    quickToggleError.value = `没找到规则 ${id}（可能被改名或删除）。去"规则"页改 enabled 字段`
+    return
+  }
+  quickToggleError.value = null
+  const next: Rule = { ...rule, enabled: !rule.enabled }
+  try {
+    rules.value = await window.api.ruleUpsert(next)
+  } catch (err) {
+    quickToggleError.value = (err as Error)?.message ?? '切换失败'
+  }
+}
 
 const roomInput = ref(room.value.id)
 const errorMsg = ref<string | null>(null)
@@ -166,6 +198,44 @@ async function copyOverlayUrl(): Promise<void> {
         <li>2. 起个名字（比如"LiveLink Overlay"）→ 确定。</li>
         <li>3. 把上面这个 URL 粘贴到"URL"栏 → 宽度 1920、高度 1080 → 确定。直播间一有动静，特效就会出现。</li>
       </ol>
+    </section>
+
+    <!-- 快捷开关：直接控制三条默认规则的 enabled -->
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <h2 class="text-sm font-medium text-slate-300">快捷开关</h2>
+      <p class="mt-1 text-xs text-slate-500">不想欢迎 / 不想回复关键词时，在这里一键关。细节去"规则"页改。</p>
+
+      <p
+        v-if="quickToggleError"
+        class="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200"
+      >
+        {{ quickToggleError }}
+      </p>
+
+      <div class="mt-4 space-y-3">
+        <div
+          v-for="t in QUICK_TOGGLES"
+          :key="t.id"
+          class="flex items-center justify-between gap-3 rounded-lg bg-slate-950/40 px-3 py-2"
+        >
+          <div class="min-w-0">
+            <div class="text-sm text-slate-200">{{ t.label }}</div>
+            <div class="text-xs text-slate-500">{{ t.hint }}</div>
+          </div>
+          <button
+            class="relative h-5 w-9 shrink-0 rounded-full transition"
+            :class="ruleById(t.id)?.enabled ? 'bg-emerald-500' : 'bg-slate-600'"
+            :disabled="!ruleById(t.id)"
+            @click="toggleQuickRule(t.id)"
+            :title="ruleById(t.id) ? '' : '规则不存在'"
+          >
+            <span
+              class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition"
+              :class="ruleById(t.id)?.enabled ? 'translate-x-4' : 'translate-x-0'"
+            ></span>
+          </button>
+        </div>
+      </div>
     </section>
 
     <!-- 高级 · B 站登录态（解决游客模式收不到弹幕的问题） -->

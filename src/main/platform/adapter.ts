@@ -15,6 +15,15 @@ export interface UserInfo {
   avatar?: string
   isAdmin?: boolean
   guardLevel?: number // 0=无 1=总督 2=提督 3=舰长
+  // 粉丝牌信息。注意：B 站协议上，进房事件 (INTERACT_WORD) 里 user.badge 往往是空，
+  // 只有弹幕 / 礼物事件 user.badge 才完整。"按粉丝牌过滤进房欢迎" 的命中率因此受限——
+  // 需要在 UI 上提醒用户这是已知 caveat
+  fansMedal?: {
+    level: number // 牌子等级
+    name: string // 牌子名称
+    isAnchor: boolean // 是否本直播间主播的牌子（关键过滤维度）
+    isLighted: boolean // 牌子是否点亮
+  }
 }
 
 export interface ViewerEnterPayload {

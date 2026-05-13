@@ -94,6 +94,15 @@ export class RuleEngine {
 function matches(spec: RuleMatch, e: StandardEvent): boolean {
   if (spec.kind === 'always') return true
 
+  // 粉丝牌过滤不依赖文本，单独处理。注意：很多进房事件没有 badge（B 站协议层 caveat），
+  // 此时 fansMedal 为 undefined 一律返回 false
+  if (spec.kind === 'fans_medal') {
+    const m = e.user.fansMedal
+    if (!m) return false
+    if (spec.requireAnchor && !m.isAnchor) return false
+    return m.level >= spec.minLevel
+  }
+
   // 关键词 / 正则只对带文本的事件有意义
   const text = extractText(e)
   if (text == null) return false

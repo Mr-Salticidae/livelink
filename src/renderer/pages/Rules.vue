@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { rules } from '../store'
-import type { Rule, EventKind } from '../types'
+import type { Rule, EventKind, RuleMatch } from '../types'
 
 const TRIGGER_GROUPS: { kind: EventKind; label: string }[] = [
   { kind: 'viewer.enter', label: '进房欢迎' },
@@ -88,7 +88,33 @@ function matchSummary(rule: Rule): string {
   if (m.kind === 'always') return '总是触发'
   if (m.kind === 'keyword') return `关键词（${m.mode === 'all' ? '全部命中' : '任一命中'}）：${m.keywords.join('、')}`
   if (m.kind === 'regex') return `正则：${m.pattern}`
+  if (m.kind === 'fans_medal') {
+    return `粉丝牌 ≥ ${m.minLevel} 级${m.requireAnchor ? '（仅本主播）' : ''}`
+  }
   return ''
+}
+
+// 切换匹配方式时，把当前 match 重置成新 kind 的默认形态。
+// 保留旧 keywords 文本到 keywordsText 让用户切回来时不丢——但跨 kind 重置 match 主体
+function changeMatchKind(rule: Rule, kind: RuleMatch['kind']): void {
+  if (kind === 'always') rule.match = { kind: 'always' }
+  else if (kind === 'keyword')
+    rule.match = { kind: 'keyword', keywords: [], mode: 'any' }
+  else if (kind === 'regex') rule.match = { kind: 'regex', pattern: '' }
+  else if (kind === 'fans_medal')
+    rule.match = { kind: 'fans_medal', minLevel: 0, requireAnchor: true }
+}
+
+// keyword.keywords 在表单里用逗号 / 顿号分隔输入，转回数组存
+function keywordsToText(rule: Rule): string {
+  return rule.match.kind === 'keyword' ? rule.match.keywords.join('、') : ''
+}
+function setKeywordsFromText(rule: Rule, text: string): void {
+  if (rule.match.kind !== 'keyword') return
+  rule.match.keywords = text
+    .split(/[、,\s]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
 }
 </script>
 
@@ -181,6 +207,88 @@ function matchSummary(rule: Rule): string {
                 class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
               />
             </label>
+          </div>
+
+          <!-- 匹配方式 -->
+          <div class="rounded border border-slate-800 bg-slate-950/60 p-3 space-y-2">
+            <label class="text-xs text-slate-400">
+              匹配方式
+              <select
+                :value="editing[rule.id].match.kind"
+                @change="changeMatchKind(editing[rule.id], ($event.target as HTMLSelectElement).value as RuleMatch['kind'])"
+                class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+              >
+                <option value="always">总是触发</option>
+                <option value="keyword">关键词</option>
+                <option value="regex">正则</option>
+                <option value="fans_medal">粉丝牌等级</option>
+              </select>
+            </label>
+
+            <!-- always: 无需配置 -->
+            <p v-if="editing[rule.id].match.kind === 'always'" class="text-xs text-slate-500">
+              每次事件都触发（适合"所有人进房都欢迎"这种规则）
+            </p>
+
+            <!-- keyword -->
+            <template v-if="editing[rule.id].match.kind === 'keyword'">
+              <label class="block text-xs text-slate-400">
+                关键词（顿号 / 逗号 / 空格分隔）
+                <input
+                  :value="keywordsToText(editing[rule.id])"
+                  @input="setKeywordsFromText(editing[rule.id], ($event.target as HTMLInputElement).value)"
+                  type="text"
+                  placeholder="你好、哈喽、hi"
+                  class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+                />
+              </label>
+              <label class="block text-xs text-slate-400">
+                匹配模式
+                <select
+                  v-model="(editing[rule.id].match as Extract<RuleMatch, { kind: 'keyword' }>).mode"
+                  class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+                >
+                  <option value="any">任一关键词命中</option>
+                  <option value="all">全部关键词命中</option>
+                </select>
+              </label>
+            </template>
+
+            <!-- regex -->
+            <template v-if="editing[rule.id].match.kind === 'regex'">
+              <label class="block text-xs text-slate-400">
+                正则表达式
+                <input
+                  v-model="(editing[rule.id].match as Extract<RuleMatch, { kind: 'regex' }>).pattern"
+                  type="text"
+                  placeholder="例如 ^(求|想)分享"
+                  class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100 font-mono"
+                />
+              </label>
+            </template>
+
+            <!-- fans_medal -->
+            <template v-if="editing[rule.id].match.kind === 'fans_medal'">
+              <label class="block text-xs text-slate-400">
+                最低粉丝牌等级（0-40）
+                <input
+                  v-model.number="(editing[rule.id].match as Extract<RuleMatch, { kind: 'fans_medal' }>).minLevel"
+                  type="number" min="0" max="40"
+                  class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+                />
+              </label>
+              <label class="flex items-center gap-2 text-xs text-slate-400">
+                <input
+                  v-model="(editing[rule.id].match as Extract<RuleMatch, { kind: 'fans_medal' }>).requireAnchor"
+                  type="checkbox"
+                  class="rounded border-slate-700 bg-slate-950"
+                />
+                必须是本主播的粉丝牌
+              </label>
+              <p v-if="rule.trigger === 'viewer.enter'" class="text-[11px] text-amber-300/80">
+                注意：B 站协议层进房事件常不带粉丝牌信息，本规则在送过礼物 / 发过弹幕的老粉进房时才能命中
+              </p>
+            </template>
           </div>
 
           <div
