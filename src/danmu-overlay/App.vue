@@ -18,6 +18,7 @@ const MAX_ITEMS = 80 // 列表上限，超过 FIFO 丢最早的
 const items = ref<DanmuItem[]>([])
 const scrollEl = ref<HTMLDivElement | null>(null)
 const settings = ref({ opacity: 0.85, fontSize: 14 })
+const pinned = ref<boolean>(false)
 
 const uid = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
@@ -35,34 +36,58 @@ function closeWindow(): void {
   void window.api?.danmuOverlayClose?.()
 }
 
-let unsub: (() => void) | null = null
+function togglePin(): void {
+  void window.api?.danmuOverlayPinToggle?.()
+}
+
+let unsubEvent: (() => void) | null = null
+let unsubPinned: (() => void) | null = null
 
 onMounted(() => {
   // preload 暴露的 onDanmuOverlayEvent 订阅主进程过滤后的弹幕 / 礼物事件
   const api = window.api
   if (api?.onDanmuOverlayEvent) {
-    unsub = api.onDanmuOverlayEvent((evt: DanmuItem) => push(evt))
+    unsubEvent = api.onDanmuOverlayEvent((evt: DanmuItem) => push(evt))
   }
-  // 初始化时拉一次设置（opacity / fontSize）
+  // 监听 pinned 状态变化，title bar 视觉跟着变
+  if (api?.onDanmuOverlayPinned) {
+    unsubPinned = api.onDanmuOverlayPinned((s) => {
+      pinned.value = s.pinned
+    })
+  }
+  // 初始化时拉一次设置（opacity / fontSize）+ pinned 状态
   api?.getDanmuOverlaySettings?.().then((s) => {
     if (s) settings.value = s
+  })
+  api?.danmuOverlayStatus?.().then((s) => {
+    if (s) pinned.value = s.pinned
   })
 })
 
 onBeforeUnmount(() => {
-  unsub?.()
+  unsubEvent?.()
+  unsubPinned?.()
 })
 </script>
 
 <template>
   <div
     class="danmu-window"
+    :class="{ pinned }"
     :style="{ '--opacity': settings.opacity, '--font-size': settings.fontSize + 'px' }"
   >
-    <!-- 标题栏：可拖动 + 关闭按钮 -->
-    <header class="title-bar">
-      <span class="title">LiveLink · 弹幕</span>
-      <button class="close-btn" @click="closeWindow" title="关闭悬浮窗">×</button>
+    <!-- 标题栏：未钉住时可拖动；钉住后只剩图钉按钮可点 -->
+    <header class="title-bar" :class="{ 'title-bar-pinned': pinned }">
+      <span v-if="!pinned" class="title">LiveLink · 弹幕</span>
+      <span v-else class="title pinned-hint">已钉住 · 点 📍 解开</span>
+      <div class="title-buttons">
+        <button
+          class="pin-btn"
+          @click="togglePin"
+          :title="pinned ? '解开钉住（恢复可拖动）' : '钉住（防误触移动 / 不抢游戏焦点）'"
+        >{{ pinned ? '📍' : '📌' }}</button>
+        <button v-if="!pinned" class="close-btn" @click="closeWindow" title="关闭悬浮窗">×</button>
+      </div>
     </header>
 
     <!-- 滚动列表 -->
@@ -105,38 +130,62 @@ onBeforeUnmount(() => {
 }
 
 .title-bar {
-  /* 整条标题栏作为拖动区。close button 用 no-drag 排除 */
+  /* 整条标题栏作为拖动区。pin / close 按钮用 no-drag 排除 */
   -webkit-app-region: drag;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 28px;
-  padding: 0 8px 0 12px;
+  padding: 0 6px 0 12px;
   background: rgba(2, 6, 23, 0.5);
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   flex-shrink: 0;
   user-select: none;
+}
+.title-bar-pinned {
+  /* 钉住时整条标题栏不可拖动（即便整个 BrowserWindow.setMovable(false) 也已禁用，但 CSS 也明确表达） */
+  -webkit-app-region: no-drag;
+  background: rgba(217, 119, 6, 0.18);
+  border-bottom-color: rgba(245, 158, 11, 0.35);
 }
 .title {
   font-size: 12px;
   color: #94a3b8;
   letter-spacing: 0.04em;
 }
+.pinned-hint { color: #fbbf24; font-weight: 500; }
+.title-buttons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+.pin-btn,
 .close-btn {
   -webkit-app-region: no-drag;
   background: transparent;
   border: none;
   color: #cbd5e1;
-  font-size: 18px;
   line-height: 1;
   width: 22px;
   height: 22px;
   border-radius: 4px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+.pin-btn { font-size: 13px; }
+.close-btn { font-size: 18px; }
+.pin-btn:hover { background: rgba(148, 163, 184, 0.2); }
 .close-btn:hover {
   background: rgba(244, 63, 94, 0.3);
   color: white;
+}
+/* 钉住时窗口轻微金色边框提示 */
+.danmu-window.pinned {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.18);
 }
 
 .scroll-area {

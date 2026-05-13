@@ -11,7 +11,9 @@ import {
   retryOverlay,
   rules,
   danmuOverlayEnabled,
-  toggleDanmuOverlay
+  danmuOverlayPinned,
+  toggleDanmuOverlay,
+  toggleDanmuOverlayPin
 } from '../store'
 import type { Rule } from '../types'
 import BilibiliAuthAdvanced from '../components/BilibiliAuthAdvanced.vue'
@@ -205,12 +207,12 @@ async function copyOverlayUrl(): Promise<void> {
     </section>
 
     <!-- 弹幕悬浮窗：单屏主播全屏游戏时瞟弹幕用 -->
-    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
       <div class="flex items-center justify-between gap-3">
         <div class="min-w-0">
           <h2 class="text-sm font-medium text-slate-300">弹幕悬浮窗</h2>
           <p class="mt-1 text-xs text-slate-500">
-            单屏主播必备：游戏全屏时也能瞟一眼实时弹幕 + 礼物。窗口永远置顶、可拖动 / 缩放 / 调透明度。
+            单屏主播必备：游戏全屏时也能瞟一眼实时弹幕 + 礼物。窗口永远置顶、可拖动 / 缩放。
           </p>
         </div>
         <button
@@ -225,6 +227,41 @@ async function copyOverlayUrl(): Promise<void> {
           ></span>
         </button>
       </div>
+
+      <!-- 钉住开关：开启悬浮窗后才显示 -->
+      <div
+        v-if="danmuOverlayEnabled"
+        class="flex items-center justify-between gap-3 rounded-lg bg-slate-950/40 px-3 py-2"
+      >
+        <div class="min-w-0">
+          <div class="text-sm text-slate-200 flex items-center gap-2">
+            <span>钉住悬浮窗</span>
+            <span
+              v-if="danmuOverlayPinned"
+              class="rounded bg-amber-500/20 text-amber-300 px-1.5 py-0.5 text-[10px]"
+            >已钉住</span>
+          </div>
+          <div class="text-xs text-slate-500">
+            钉住后：禁止拖动 / 缩放、点击不抢游戏焦点。游戏里乱动鼠标也不会把它拖走。再点解开。
+          </div>
+        </div>
+        <button
+          class="relative h-5 w-9 shrink-0 rounded-full transition"
+          :class="danmuOverlayPinned ? 'bg-amber-500' : 'bg-slate-600'"
+          @click="toggleDanmuOverlayPin"
+          :title="danmuOverlayPinned ? '解开钉住' : '钉住悬浮窗'"
+        >
+          <span
+            class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition"
+            :class="danmuOverlayPinned ? 'translate-x-4' : 'translate-x-0'"
+          ></span>
+        </button>
+      </div>
+
+      <p class="text-[11px] text-slate-500 leading-relaxed">
+        提示：如果开了游戏后悬浮窗仍被遮住——大概率是游戏开了"独占全屏"（exclusive fullscreen）模式。
+        把游戏画面设置切到<strong class="text-slate-300">"无边框窗口"</strong>或<strong class="text-slate-300">"窗口化"</strong>就能盖在上面。
+      </p>
     </section>
 
     <!-- 快捷开关：直接控制三条默认规则的 enabled -->

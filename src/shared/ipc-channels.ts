@@ -34,8 +34,10 @@ export const IpcChannels = {
   DanmuOverlayOpen: 'danmu-overlay:open',
   DanmuOverlayClose: 'danmu-overlay:close',
   DanmuOverlayToggle: 'danmu-overlay:toggle',
+  DanmuOverlayPinToggle: 'danmu-overlay:pin-toggle',
   DanmuOverlayStatus: 'danmu-overlay:status',
   DanmuOverlayStatusUpdate: 'danmu-overlay:status-update',
+  DanmuOverlayPinnedUpdate: 'danmu-overlay:pinned-update', // 主→子窗 pinned 状态推送
   DanmuOverlayGetSettings: 'danmu-overlay:get-settings',
   DanmuOverlayEvent: 'danmu-overlay:event', // 主→子窗 push 弹幕 / 礼物事件
 

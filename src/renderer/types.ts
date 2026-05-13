@@ -104,12 +104,14 @@ export interface ApiSurface {
   onOverlayStatus: (cb: (s: OverlayState) => void) => () => void
 
   // 弹幕悬浮窗
-  danmuOverlayOpen: () => Promise<{ enabled: boolean }>
-  danmuOverlayClose: () => Promise<{ enabled: boolean }>
-  danmuOverlayToggle: () => Promise<{ enabled: boolean }>
-  danmuOverlayStatus: () => Promise<{ enabled: boolean }>
+  danmuOverlayOpen: () => Promise<{ enabled: boolean; pinned: boolean }>
+  danmuOverlayClose: () => Promise<{ enabled: boolean; pinned: boolean }>
+  danmuOverlayToggle: () => Promise<{ enabled: boolean; pinned: boolean }>
+  danmuOverlayPinToggle: () => Promise<{ enabled: boolean; pinned: boolean }>
+  danmuOverlayStatus: () => Promise<{ enabled: boolean; pinned: boolean }>
   getDanmuOverlaySettings: () => Promise<{ opacity: number; fontSize: number }>
-  onDanmuOverlayStatus: (cb: (s: { enabled: boolean }) => void) => () => void
+  onDanmuOverlayStatus: (cb: (s: { enabled: boolean; pinned: boolean }) => void) => () => void
+  onDanmuOverlayPinned: (cb: (s: { pinned: boolean }) => void) => () => void
   onDanmuOverlayEvent: (cb: (item: unknown) => void) => () => void
 
   ruleList: () => Promise<Rule[]>

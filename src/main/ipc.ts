@@ -181,6 +181,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     danmuOverlay.toggle()
     return danmuOverlay.getStatus()
   })
+  ipcMain.handle(IpcChannels.DanmuOverlayPinToggle, () => {
+    danmuOverlay.togglePinned()
+    return danmuOverlay.getStatus()
+  })
   ipcMain.handle(IpcChannels.DanmuOverlayStatus, () => danmuOverlay.getStatus())
   ipcMain.handle(IpcChannels.DanmuOverlayGetSettings, () => danmuOverlay.getSettings())
 

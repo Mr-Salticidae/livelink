@@ -16,6 +16,7 @@ export interface BilibiliAuth {
 // 弹幕悬浮窗（主播全屏游戏时瞟弹幕用）
 export interface DanmuOverlayConfig {
   enabled: boolean // 启动时是否自动打开（持久化记忆）
+  pinned: boolean // 是否钉住：不可拖动 + 不抢焦点（游戏窗口里鼠标点穿不被偷走）
   bounds: { x: number; y: number; width: number; height: number } | null
   opacity: number // 背景不透明度 0-1
   fontSize: number // 字号 px
@@ -33,6 +34,7 @@ export interface AppConfigSchema {
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
   enabled: false,
+  pinned: false,
   bounds: null,
   opacity: 0.85,
   fontSize: 14
@@ -141,6 +143,7 @@ export class AppConfig {
     if (!stored) return { ...DEFAULT_DANMU_OVERLAY }
     return {
       enabled: stored.enabled ?? false,
+      pinned: stored.pinned ?? false,
       bounds: stored.bounds ?? null,
       opacity: typeof stored.opacity === 'number' ? stored.opacity : DEFAULT_DANMU_OVERLAY.opacity,
       fontSize:

@@ -13,6 +13,7 @@ export const bilibiliAuth = ref<BilibiliAuth>({ sessdata: '', uid: '', buvid: ''
 export const rules = ref<Rule[]>([])
 export const logs = ref<LogEntry[]>([])
 export const danmuOverlayEnabled = ref<boolean>(false)
+export const danmuOverlayPinned = ref<boolean>(false)
 
 export type PageKey = 'home' | 'rules' | 'tts' | 'logs'
 export const currentPage = ref<PageKey>('home')
@@ -80,11 +81,13 @@ export async function loadInitialData(): Promise<void> {
   try {
     const s = await api.danmuOverlayStatus()
     danmuOverlayEnabled.value = s.enabled
+    danmuOverlayPinned.value = s.pinned
   } catch (err) {
     console.error('danmuOverlayStatus failed', err)
   }
   api.onDanmuOverlayStatus((s) => {
     danmuOverlayEnabled.value = s.enabled
+    danmuOverlayPinned.value = s.pinned
   })
 }
 
@@ -92,8 +95,19 @@ export async function toggleDanmuOverlay(): Promise<void> {
   try {
     const next = await window.api.danmuOverlayToggle()
     danmuOverlayEnabled.value = next.enabled
+    danmuOverlayPinned.value = next.pinned
   } catch (err) {
     console.error('danmuOverlayToggle failed', err)
+  }
+}
+
+export async function toggleDanmuOverlayPin(): Promise<void> {
+  try {
+    const next = await window.api.danmuOverlayPinToggle()
+    danmuOverlayEnabled.value = next.enabled
+    danmuOverlayPinned.value = next.pinned
+  } catch (err) {
+    console.error('danmuOverlayPinToggle failed', err)
   }
 }
 

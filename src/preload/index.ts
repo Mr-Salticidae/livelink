@@ -59,12 +59,18 @@ const api = {
   danmuOverlayOpen: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayOpen),
   danmuOverlayClose: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayClose),
   danmuOverlayToggle: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayToggle),
+  danmuOverlayPinToggle: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayPinToggle),
   danmuOverlayStatus: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayStatus),
   getDanmuOverlaySettings: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayGetSettings),
-  onDanmuOverlayStatus: (cb: (s: { enabled: boolean }) => void) => {
-    const handler = (_: IpcRendererEvent, s: { enabled: boolean }): void => cb(s)
+  onDanmuOverlayStatus: (cb: (s: { enabled: boolean; pinned: boolean }) => void) => {
+    const handler = (_: IpcRendererEvent, s: { enabled: boolean; pinned: boolean }): void => cb(s)
     ipcRenderer.on(IpcChannels.DanmuOverlayStatusUpdate, handler)
     return () => ipcRenderer.removeListener(IpcChannels.DanmuOverlayStatusUpdate, handler)
+  },
+  onDanmuOverlayPinned: (cb: (s: { pinned: boolean }) => void) => {
+    const handler = (_: IpcRendererEvent, s: { pinned: boolean }): void => cb(s)
+    ipcRenderer.on(IpcChannels.DanmuOverlayPinnedUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.DanmuOverlayPinnedUpdate, handler)
   },
   onDanmuOverlayEvent: (cb: (item: unknown) => void) => {
     const handler = (_: IpcRendererEvent, item: unknown): void => cb(item)

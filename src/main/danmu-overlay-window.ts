@@ -89,7 +89,7 @@ export class DanmuOverlayWindow {
       this.detachBus()
       this.win = null
       // 通知主窗口刷新状态徽章
-      this.notifyStatusChange(false)
+      this.notifyStatusChange()
     })
     // resize / move 时 throttle 写入 config，避免高频抖动
     const persistThrottled = throttle(() => this.persistBounds(), 500)
@@ -105,7 +105,14 @@ export class DanmuOverlayWindow {
 
     this.attachBus()
     this.config.patchDanmuOverlay({ enabled: true })
-    this.notifyStatusChange(true)
+
+    // 应用上次会话的 pinned 状态（可能上次直播时钉住了）
+    if (saved.pinned) {
+      // 注意：setMovable 等 API 在 win 还没 ready-to-show 时也能调，Electron 会缓存到首次 show
+      this.applyPinned(true)
+    }
+
+    this.notifyStatusChange()
   }
 
   close(): void {
@@ -119,9 +126,37 @@ export class DanmuOverlayWindow {
     else this.open()
   }
 
-  /** 给 IPC 用：返回 enabled 状态 */
-  getStatus(): { enabled: boolean } {
-    return { enabled: this.isOpen() }
+  /** 钉住 / 解钉。钉住后窗口不可拖动、不抢焦点（点击不偷走游戏焦点） */
+  setPinned(pinned: boolean): void {
+    this.config.patchDanmuOverlay({ pinned })
+    this.applyPinned(pinned)
+    // 推送当前 pinned 状态到子窗，让 UI 切换图钉图标 + 标题栏样式
+    this.win?.webContents.send(IpcChannels.DanmuOverlayPinnedUpdate, { pinned })
+    this.notifyStatusChange()
+  }
+
+  togglePinned(): void {
+    const cur = this.config.getDanmuOverlay().pinned
+    this.setPinned(!cur)
+  }
+
+  private applyPinned(pinned: boolean): void {
+    if (!this.win || this.win.isDestroyed()) return
+    // setMovable(false) 在 Windows / Linux 上有效；macOS 上 frameless 窗口需要额外处理但 LiveLink 只支持 Win
+    this.win.setMovable(!pinned)
+    this.win.setResizable(!pinned)
+    // setFocusable(false) → WS_EX_NOACTIVATE，点击窗口不抢焦点，避免游戏失焦
+    this.win.setFocusable(!pinned)
+    // 钉住时再次强制 alwaysOnTop screen-saver 层级，已是最高
+    this.win.setAlwaysOnTop(true, 'screen-saver')
+  }
+
+  /** 给 IPC 用：返回 enabled + pinned 状态 */
+  getStatus(): { enabled: boolean; pinned: boolean } {
+    return {
+      enabled: this.isOpen(),
+      pinned: this.config.getDanmuOverlay().pinned
+    }
   }
 
   /** 给 IPC 用：返回 settings (opacity / fontSize) */
@@ -192,15 +227,16 @@ export class DanmuOverlayWindow {
     return { x: b.x, y: b.y, width: b.width, height: b.height }
   }
 
-  private statusListeners = new Set<(s: { enabled: boolean }) => void>()
-  onStatusChange(cb: (s: { enabled: boolean }) => void): () => void {
+  private statusListeners = new Set<(s: { enabled: boolean; pinned: boolean }) => void>()
+  onStatusChange(cb: (s: { enabled: boolean; pinned: boolean }) => void): () => void {
     this.statusListeners.add(cb)
     return () => this.statusListeners.delete(cb)
   }
-  private notifyStatusChange(enabled: boolean): void {
+  private notifyStatusChange(): void {
+    const s = this.getStatus()
     for (const l of this.statusListeners) {
       try {
-        l({ enabled })
+        l(s)
       } catch (err) {
         console.error('[DanmuOverlayWindow] status listener threw', err)
       }
