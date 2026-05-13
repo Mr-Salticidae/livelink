@@ -11,6 +11,7 @@ import { OverlayBroadcaster } from './actions/overlay'
 import { LogSink } from './actions/log'
 import { OverlayServer } from './overlay-server/server'
 import { OverlayController } from './overlay-controller'
+import { GiftService } from './services/gift-config'
 import { AppConfig } from './config/store'
 import { registerIpcHandlers } from './ipc'
 import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
@@ -26,11 +27,14 @@ ttsPlayer.setConfig(config.getTts())
 
 const overlayBroadcaster = new OverlayBroadcaster()
 const overlayServer = new OverlayServer()
+// GiftService 在 app.whenReady 之前不能调 getPath('userData')，cacheDir 推迟到 ready 后注入
+let giftService: GiftService | null = null
 const overlayController = new OverlayController(
   overlayServer,
   overlayBroadcaster,
   config,
-  join(__dirname, '../renderer')
+  join(__dirname, '../renderer'),
+  () => giftService
 )
 
 const adapter = new BilibiliAdapter()
@@ -102,6 +106,12 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send(IpcChannels.OverlayStatusUpdate, overlayController.getState())
   })
 
+  // GiftService 必须在 app.whenReady 之后才能拿 userData 路径。先建实例，再异步 refresh
+  giftService = new GiftService({ cacheDir: join(app.getPath('userData'), 'gift-cache') })
+  await giftService.start().catch((err) => {
+    console.warn('[main] GiftService start failed (non-fatal):', err)
+  })
+
   try {
     await overlayController.start()
   } catch (err) {
@@ -144,6 +154,13 @@ async function cleanup(): Promise<void> {
     await overlayServer.stop()
   } catch (err) {
     console.error('[main] overlayServer stop failed', err)
+  }
+  if (giftService) {
+    try {
+      await giftService.stop()
+    } catch (err) {
+      console.error('[main] giftService stop failed', err)
+    }
   }
   ttsPlayer.dispose()
   engine.detach()

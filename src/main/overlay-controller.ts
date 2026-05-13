@@ -2,6 +2,7 @@
 import type { AppConfig } from './config/store'
 import type { OverlayBroadcaster } from './actions/overlay'
 import type { OverlayServer } from './overlay-server/server'
+import type { GiftService } from './services/gift-config'
 import type { OverlayState } from '../shared/ipc-channels'
 
 export class OverlayController {
@@ -13,7 +14,9 @@ export class OverlayController {
     private server: OverlayServer,
     private broadcaster: OverlayBroadcaster,
     private config: AppConfig,
-    private rendererDir: string
+    private rendererDir: string,
+    // GiftService 在 app.whenReady 后才注入，用 getter 延迟解析
+    private giftServiceGetter: () => GiftService | null = () => null
   ) {}
 
   setOnChange(cb: () => void): void {
@@ -24,7 +27,8 @@ export class OverlayController {
     try {
       const port = await this.server.start({
         rendererDir: this.rendererDir,
-        preferredPort: this.config.getOverlayPort()
+        preferredPort: this.config.getOverlayPort(),
+        giftService: this.giftServiceGetter() ?? undefined
       })
       this.config.setOverlayPort(port)
       this.broadcaster.setSender((msg) => this.server.broadcast(msg))

@@ -5,12 +5,14 @@ import express from 'express'
 import { Server as IOServer, type Namespace } from 'socket.io'
 import type { OverlayMessage } from '../actions/overlay'
 import { findAvailablePort } from './port'
+import { GiftService } from '../services/gift-config'
 
 const DEFAULT_PORT = 38501
 
 export interface OverlayServerOptions {
   rendererDir: string // 指向 out/renderer/
   preferredPort?: number
+  giftService?: GiftService // 注入后启用 /api/gift/:id
 }
 
 export class OverlayServer {
@@ -31,6 +33,37 @@ export class OverlayServer {
     app.get('/api/health', (_req, res) => {
       res.json({ ok: true, name: 'LiveLink Overlay Server', port })
     })
+
+    // /api/gift/:id —— 注入了 GiftService 才生效。无效 id / 下载失败统一 404
+    const giftService = options.giftService
+    if (giftService) {
+      app.get('/api/gift/:id', async (req, res) => {
+        const id = Number(req.params.id)
+        if (!Number.isFinite(id)) {
+          res.status(400).end()
+          return
+        }
+        const asset = giftService.getAsset(id)
+        if (!asset) {
+          res.status(404).end()
+          return
+        }
+        try {
+          const localPath = await giftService.getOrFetchLocalPath(id)
+          if (!localPath) {
+            res.status(404).end()
+            return
+          }
+          res.type(GiftService.mimeForExt(asset.imgExt))
+          // 1 天客户端缓存。overlay 端拉同一礼物时不再回主进程
+          res.setHeader('Cache-Control', 'public, max-age=86400')
+          giftService.openLocalStream(localPath).pipe(res)
+        } catch (err) {
+          console.error(`[OverlayServer] gift ${id} serve failed`, err)
+          if (!res.headersSent) res.status(500).end()
+        }
+      })
+    }
 
     if (existsSync(assetsPath)) {
       app.use('/assets', express.static(assetsPath, { fallthrough: true, maxAge: 0 }))

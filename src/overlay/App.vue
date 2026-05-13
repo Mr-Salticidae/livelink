@@ -10,6 +10,9 @@ interface GiftItem {
   uname: string
   giftName: string
   num: number
+  giftId?: number
+  price?: number
+  coinType?: 'gold' | 'silver'
 }
 
 interface EnterItem {
@@ -57,12 +60,21 @@ function pushEnter(item: EnterItem): void {
 onMounted(() => {
   on<OverlayPayload>('gift.received', (msg) => {
     const ev = msg.event
-    const payload = ev.payload as { giftName?: string; num?: number }
+    const payload = ev.payload as {
+      giftId?: number
+      giftName?: string
+      num?: number
+      price?: number
+      coinType?: 'gold' | 'silver'
+    }
     enqueueGift({
       id: uid(),
       uname: ev.user?.uname ?? '观众',
       giftName: payload?.giftName ?? '礼物',
-      num: typeof payload?.num === 'number' ? payload.num : 1
+      num: typeof payload?.num === 'number' ? payload.num : 1,
+      giftId: payload?.giftId,
+      price: payload?.price,
+      coinType: payload?.coinType
     })
   })
 
@@ -88,6 +100,9 @@ onMounted(() => {
         :uname="g.uname"
         :gift-name="g.giftName"
         :num="g.num"
+        :gift-id="g.giftId"
+        :price="g.price"
+        :coin-type="g.coinType"
       />
     </div>
   </div>
