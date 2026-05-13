@@ -83,9 +83,10 @@ export class HorseRaceService {
   private bus: Bus
   private overlay: OverlayBroadcaster
 
-  // 报名期间：uid → horseKey（同 uid 后续选号覆盖）+ uid → uname（用于公布下注者）
+  // 报名期间：bettorKey → horseKey（同观众后续选号覆盖）+ bettorKey → uname
+  // bettorKey 是复合 `${uid}|${uname}` 防止 B 站匿名观众 uid=0 互相覆盖
   private bets = new Map<string, string>()
-  private uidToUname = new Map<string, string>()
+  private bettorUname = new Map<string, string>()
 
   private enrollTimer: NodeJS.Timeout | null = null
   private raceTimer: NodeJS.Timeout | null = null
@@ -129,7 +130,7 @@ export class HorseRaceService {
     const endsAt = now + config.enrollSec * 1000
 
     this.bets.clear()
-    this.uidToUname.clear()
+    this.bettorUname.clear()
     const enrollments: Record<string, number> = {}
     for (const h of config.horses) enrollments[h.key] = 0
 
@@ -176,7 +177,7 @@ export class HorseRaceService {
     this.clearTimers()
     this.detachBus()
     this.bets.clear()
-    this.uidToUname.clear()
+    this.bettorUname.clear()
     this.state = { phase: 'idle' }
     this.overlay.broadcast({ kind: 'horserace.cancelled', event: this.fakeEvent(Date.now()) })
     this.notify()
@@ -274,9 +275,9 @@ export class HorseRaceService {
     // 押中第一名的下注者列表（最多 10 个 uname，避免太长）
     const winnerHorse = rankings[0].horseKey
     const winnerBettors: string[] = []
-    for (const [uid, bet] of this.bets.entries()) {
+    for (const [bettorKey, bet] of this.bets.entries()) {
       if (bet === winnerHorse) {
-        winnerBettors.push(this.uidToUname.get(uid) ?? '观众')
+        winnerBettors.push(this.bettorUname.get(bettorKey) ?? '观众')
         if (winnerBettors.length >= 10) break
       }
     }
@@ -335,16 +336,19 @@ export class HorseRaceService {
       if (m.level < cfg.minFansMedalLevel) return
     }
 
-    const uid = e.user.uid
-    if (!uid) return
+    // 复合 dedupe key：B 站匿名观众 uid=0 时，单按 uid 会让所有人都被认作"同一人改投"
+    const uname = e.user.uname || '观众'
+    const bettorKey = `${e.user.uid || '0'}|${uname}`
+    if (!e.user.uid && !uname) return
 
-    const prev = this.bets.get(uid)
+    const prev = this.bets.get(bettorKey)
     if (prev === matched.key) return
     const enrollments = { ...cur.enrollments }
     if (prev) enrollments[prev] = Math.max(0, (enrollments[prev] ?? 0) - 1)
     enrollments[matched.key] = (enrollments[matched.key] ?? 0) + 1
-    this.bets.set(uid, matched.key)
-    this.uidToUname.set(uid, e.user.uname || '观众')
+    this.bets.set(bettorKey, matched.key)
+    this.bettorUname.set(bettorKey, uname)
+    console.log(`[HorseRace] 押注: uid=${e.user.uid} uname=${uname} → ${matched.key}`)
 
     this.state = { ...cur, enrollments }
     this.notify()
@@ -408,7 +412,7 @@ export class HorseRaceService {
     this.clearTimers()
     this.detachBus()
     this.bets.clear()
-    this.uidToUname.clear()
+    this.bettorUname.clear()
     this.state = { phase: 'idle' }
   }
 }

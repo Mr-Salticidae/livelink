@@ -235,10 +235,12 @@ export class VotingService {
       if (m.level < cfg.minFansMedalLevel) return
     }
 
-    const uid = e.user.uid
-    if (!uid) return
+    // 复合 dedupe key：B 站匿名观众 uid=0 时，单按 uid 会让所有人都被认作"同一人改投"
+    const uname = e.user.uname || '观众'
+    const voterKey = `${e.user.uid || '0'}|${uname}`
+    if (!e.user.uid && !uname) return
 
-    const prev = this.votes.get(uid)
+    const prev = this.votes.get(voterKey)
     if (prev === matched.key) return // 重复同选项无操作
     if (prev && !cfg.allowChangeVote) return // 不允许改投
 
@@ -252,7 +254,8 @@ export class VotingService {
       totalVotes += 1
     }
     counts[matched.key] = (counts[matched.key] ?? 0) + 1
-    this.votes.set(uid, matched.key)
+    this.votes.set(voterKey, matched.key)
+    console.log(`[Voting] 票: uid=${e.user.uid} uname=${uname} → ${matched.key} 共 ${totalVotes} 票`)
 
     this.state = { ...cur, counts, totalVotes }
     this.notify()

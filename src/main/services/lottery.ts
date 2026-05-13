@@ -228,11 +228,14 @@ export class LotteryService {
       if (m.level < cfg.minFansMedalLevel) return
     }
 
-    // 去重：同 uid 重复发关键词只记一次
-    const uid = e.user.uid
-    if (!uid) return
-    if (this.participants.has(uid)) return
-    this.participants.set(uid, e.user.uname || '观众')
+    // 去重：复合 key (uid|uname) 防止 B 站匿名观众 uid=0 互相覆盖
+    // 单纯按 uid 时，所有未登录 / 协议异常的观众 uid='0' → 第一个之后全被忽略
+    const uname = e.user.uname || '观众'
+    const dedupeKey = `${e.user.uid || '0'}|${uname}`
+    if (!e.user.uid && !uname) return
+    if (this.participants.has(dedupeKey)) return
+    this.participants.set(dedupeKey, uname)
+    console.log(`[Lottery] 参与: uid=${e.user.uid} uname=${uname} 共 ${this.participants.size} 人`)
 
     // 更新 state 的 participantCount + 节流推 overlay
     if (this.state.phase === 'running') {
