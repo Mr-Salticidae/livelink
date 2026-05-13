@@ -45,8 +45,11 @@ async function save(id: string): Promise<void> {
   if (!rule) return
   savingId.value = id
   saveError.value = null
+  // editing 里的对象虽是 JSON 深拷贝出来的（startEdit），但 v-model 双向绑定后
+  // 又可能被 Vue 包成 reactive Proxy。保存前再深拷贝一次拍平
+  const payload: Rule = JSON.parse(JSON.stringify(rule))
   try {
-    const list = await window.api.ruleUpsert(rule)
+    const list = await window.api.ruleUpsert(payload)
     rules.value = list
     delete editing.value[id]
   } catch (err) {
@@ -57,7 +60,8 @@ async function save(id: string): Promise<void> {
 }
 
 async function toggleEnabled(rule: Rule): Promise<void> {
-  const next: Rule = { ...rule, enabled: !rule.enabled }
+  // 深拷贝把 Vue reactive Proxy 拍平成 plain object，避免 IPC structured clone 失败
+  const next: Rule = JSON.parse(JSON.stringify({ ...rule, enabled: !rule.enabled }))
   try {
     const list = await window.api.ruleUpsert(next)
     rules.value = list

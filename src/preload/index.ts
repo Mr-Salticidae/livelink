@@ -2,6 +2,26 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { IpcChannels } from '../shared/ipc-channels'
 
+// Electron IPC 用 structuredClone 序列化参数。Vue 3 的 reactive Proxy
+// 不能直接 clone，传 Proxy 对象（含嵌套数组 / 对象）会炸 `An object could not be cloned`。
+//
+// 渲染端可能用 `{ ...rule }` 浅展开 Proxy（顶层 plain object，但嵌套字段仍是 Proxy 引用），
+// JSON 来回一次能把所有嵌套 Proxy 都拍平成 plain。
+// 在 preload 层统一兜底，避免散落在每个 vue 文件里——只要这个 layer 干净，
+// 渲染端再怎么传 reactive 对象都不会炸。
+function cleanForIpc<T>(value: T): T {
+  // string / number / undefined / null 直接返回，避免无谓 stringify 开销
+  if (value === undefined || value === null) return value
+  const t = typeof value
+  if (t === 'string' || t === 'number' || t === 'boolean') return value
+  try {
+    return JSON.parse(JSON.stringify(value)) as T
+  } catch (err) {
+    console.error('[preload] cleanForIpc failed', err)
+    return value
+  }
+}
+
 const api = {
   // 连接控制
   startConnection: (roomId: string) => ipcRenderer.invoke(IpcChannels.AppStart, roomId),
@@ -15,11 +35,12 @@ const api = {
   // 配置 · B 站登录态（高级）
   getBilibiliAuth: () => ipcRenderer.invoke(IpcChannels.ConfigGetBilibiliAuth),
   patchBilibiliAuth: (patch: Record<string, string>) =>
-    ipcRenderer.invoke(IpcChannels.ConfigPatchBilibiliAuth, patch),
+    ipcRenderer.invoke(IpcChannels.ConfigPatchBilibiliAuth, cleanForIpc(patch)),
 
   // 配置 · TTS
   getTts: () => ipcRenderer.invoke(IpcChannels.ConfigGetTts),
-  patchTts: (patch: Record<string, unknown>) => ipcRenderer.invoke(IpcChannels.ConfigPatchTts, patch),
+  patchTts: (patch: Record<string, unknown>) =>
+    ipcRenderer.invoke(IpcChannels.ConfigPatchTts, cleanForIpc(patch)),
   ttsTest: (text?: string) => ipcRenderer.invoke(IpcChannels.TtsTest, text),
   ttsVoiceList: () => ipcRenderer.invoke(IpcChannels.TtsVoiceList),
 
@@ -36,7 +57,8 @@ const api = {
 
   // 规则
   ruleList: () => ipcRenderer.invoke(IpcChannels.RuleList),
-  ruleUpsert: (rule: unknown) => ipcRenderer.invoke(IpcChannels.RuleUpsert, rule),
+  ruleUpsert: (rule: unknown) =>
+    ipcRenderer.invoke(IpcChannels.RuleUpsert, cleanForIpc(rule)),
   ruleDelete: (id: string) => ipcRenderer.invoke(IpcChannels.RuleDelete, id),
 
   // 日志

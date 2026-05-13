@@ -36,7 +36,9 @@ async function toggleQuickRule(id: string): Promise<void> {
     return
   }
   quickToggleError.value = null
-  const next: Rule = { ...rule, enabled: !rule.enabled }
+  // 深拷贝把 Vue reactive Proxy 拍平成 plain object，避免 IPC structured clone 失败。
+  // preload 层已统一兜底（cleanForIpc），这里再加一层 belt-and-suspenders
+  const next: Rule = JSON.parse(JSON.stringify({ ...rule, enabled: !rule.enabled }))
   try {
     rules.value = await window.api.ruleUpsert(next)
   } catch (err) {
