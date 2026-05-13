@@ -1,6 +1,6 @@
 {
   "name": "livelink",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "B 站直播弹幕+礼物插件 — 给非技术主播朋友的桌面助手",
   "main": "./out/main/index.js",
   "author": "跳蛛先生",

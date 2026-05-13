@@ -13,6 +13,8 @@ import VotingCard from './components/VotingCard.vue'
 import VotingResultCard from './components/VotingResultCard.vue'
 import HorseRaceCard from './components/HorseRaceCard.vue'
 import HorseRaceResultCard from './components/HorseRaceResultCard.vue'
+import IntroBanner from './components/IntroBanner.vue'
+import Celebration from './components/Celebration.vue'
 
 type BoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 interface BoardConfig {
@@ -148,6 +150,37 @@ const HORSE_RESULT_MS = 10_000
 const activeHorseRace = ref<HorseRaceActive | null>(null)
 const activeHorseRaceResult = ref<HorseRaceResult | null>(null)
 
+// 开场招牌：游戏启动那 2.4 秒显示
+interface IntroState {
+  id: string
+  icon: string
+  title: string
+  subtitle?: string
+  theme: 'gold' | 'sky' | 'amber'
+}
+const activeIntro = ref<IntroState | null>(null)
+const INTRO_VISIBLE_MS = 2400
+
+function showIntro(intro: Omit<IntroState, 'id'>): void {
+  const item: IntroState = { ...intro, id: uid() }
+  activeIntro.value = item
+  window.setTimeout(() => {
+    if (activeIntro.value?.id === item.id) activeIntro.value = null
+  }, INTRO_VISIBLE_MS)
+}
+
+// 结果飘彩：result 揭晓时撒 2.5 秒彩纸
+const activeCelebration = ref<string | null>(null)
+const CELEBRATION_VISIBLE_MS = 2800
+
+function triggerCelebration(): void {
+  const id = uid()
+  activeCelebration.value = id
+  window.setTimeout(() => {
+    if (activeCelebration.value === id) activeCelebration.value = null
+  }, CELEBRATION_VISIBLE_MS)
+}
+
 // OBS 弹幕信息板：默认关闭，主进程通过 danmu.board.config 推送配置
 const danmuBoardConfig = ref<BoardConfig>({
   enabled: false,
@@ -253,6 +286,12 @@ onMounted(() => {
       endsAt: x.endsAt,
       participantCount: 0
     }
+    showIntro({
+      icon: '🎰',
+      title: '抽奖开始啦',
+      subtitle: x.keyword ? `发 "${x.keyword}" 参与` : undefined,
+      theme: 'gold'
+    })
   })
 
   on<OverlayPayload>('lottery.tick', (msg) => {
@@ -277,6 +316,8 @@ onMounted(() => {
       participantCount: x?.participantCount ?? 0
     }
     activeLotteryResult.value = result
+    // 有中奖者才庆祝（没人参与不撒彩）
+    if (result.winners.length > 0) triggerCelebration()
     window.setTimeout(() => {
       if (activeLotteryResult.value?.id === result.id) activeLotteryResult.value = null
     }, LOTTERY_RESULT_MS)
@@ -300,6 +341,12 @@ onMounted(() => {
       counts: x.counts ?? {},
       totalVotes: 0
     }
+    showIntro({
+      icon: '📊',
+      title: '投票时间',
+      subtitle: x.title ?? '发选项号参与',
+      theme: 'sky'
+    })
   })
   on<OverlayPayload>('voting.tick', (msg) => {
     const x = msg.extra as { counts?: Record<string, number>; totalVotes?: number } | undefined
@@ -331,6 +378,7 @@ onMounted(() => {
       winnerKey: x.winnerKey ?? null
     }
     activeVotingResult.value = result
+    if (result.totalVotes > 0) triggerCelebration()
     window.setTimeout(() => {
       if (activeVotingResult.value?.id === result.id) activeVotingResult.value = null
     }, VOTING_RESULT_MS)
@@ -353,6 +401,12 @@ onMounted(() => {
       positions: {},
       endsAt: x.endsAt
     }
+    showIntro({
+      icon: '🏇',
+      title: '赛马来啦',
+      subtitle: '发马号押注',
+      theme: 'amber'
+    })
   })
   on<OverlayPayload>('horserace.enroll-tick', (msg) => {
     const x = msg.extra as { enrollments?: Record<string, number> } | undefined
@@ -401,6 +455,8 @@ onMounted(() => {
       winnerHorseKey: x.winnerHorseKey ?? null
     }
     activeHorseRaceResult.value = result
+    // 有押中冠军的观众才庆祝（冷场不撒彩）
+    if (result.winnerBettors.length > 0) triggerCelebration()
     window.setTimeout(() => {
       if (activeHorseRaceResult.value?.id === result.id) activeHorseRaceResult.value = null
     }, HORSE_RESULT_MS)
@@ -541,6 +597,23 @@ onMounted(() => {
         :prize="activeLotteryResult.prize"
         :winners="activeLotteryResult.winners"
         :participant-count="activeLotteryResult.participantCount"
+      />
+    </div>
+
+    <!-- 庆祝飘彩（在结果卡之下，作为氛围层） -->
+    <Celebration v-if="activeCelebration" :key="activeCelebration" />
+
+    <!-- 开场招牌（屏幕中央，z-index 最高，2.4 秒自动消失） -->
+    <div
+      v-if="activeIntro"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50"
+    >
+      <IntroBanner
+        :key="activeIntro.id"
+        :icon="activeIntro.icon"
+        :title="activeIntro.title"
+        :subtitle="activeIntro.subtitle"
+        :theme="activeIntro.theme"
       />
     </div>
 
