@@ -11,6 +11,7 @@ import type { Rule } from './rules/types'
 import type { DanmuOverlayWindow } from './danmu-overlay-window'
 import type { LotteryService, LotteryConfig } from './services/lottery'
 import type { VotingService, VotingConfig } from './services/voting'
+import type { HorseRaceService, HorseRaceConfig } from './services/horse-race'
 import { toFriendlyError } from './errors/friendly'
 
 export interface IpcDeps {
@@ -23,6 +24,7 @@ export interface IpcDeps {
   danmuOverlay: DanmuOverlayWindow
   lottery: LotteryService
   voting: VotingService
+  horseRace: HorseRaceService
   config: AppConfig
   log: LogSink
   status: { current: ConnectionStatus }
@@ -38,6 +40,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     danmuOverlay,
     lottery,
     voting,
+    horseRace,
     config,
     log,
     status
@@ -279,6 +282,34 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   voting.onStatusChange((s) => {
     deps.getMainWindow()?.webContents.send(IpcChannels.VotingStatusUpdate, s)
+  })
+
+  // ─── 赛马 ──────────────────────────────────────────────────
+  ipcMain.handle(IpcChannels.HorseRaceStart, (_e, c: HorseRaceConfig) => {
+    const r = horseRace.start(c)
+    if (!r.ok) throw new Error(r.error)
+    config.setHorseRacePreset(c)
+    return horseRace.getState()
+  })
+  ipcMain.handle(IpcChannels.HorseRaceCancel, () => {
+    const r = horseRace.cancel()
+    if (!r.ok) throw new Error(r.error)
+    return horseRace.getState()
+  })
+  ipcMain.handle(IpcChannels.HorseRaceStartNow, () => {
+    const r = horseRace.startNow()
+    if (!r.ok) throw new Error(r.error)
+    return horseRace.getState()
+  })
+  ipcMain.handle(IpcChannels.HorseRaceReset, () => {
+    horseRace.reset()
+    return horseRace.getState()
+  })
+  ipcMain.handle(IpcChannels.HorseRaceStatus, () => horseRace.getState())
+  ipcMain.handle(IpcChannels.HorseRaceGetPreset, () => config.getHorseRacePreset())
+
+  horseRace.onStatusChange((s) => {
+    deps.getMainWindow()?.webContents.send(IpcChannels.HorseRaceStatusUpdate, s)
   })
 
   // ─── 规则 ────────────────────────────────────────────────────

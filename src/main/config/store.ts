@@ -13,6 +13,15 @@ export interface BilibiliAuth {
   buvid: string // buvid3，可选
 }
 
+// 赛马 preset
+export interface HorseRacePreset {
+  horses: { key: string; name: string; emoji: string }[]
+  enrollSec: number
+  raceSec: number
+  requireAnchorFansMedal: boolean
+  minFansMedalLevel: number
+}
+
 // 互动投票上次使用参数
 export interface VotingPreset {
   title: string
@@ -63,6 +72,7 @@ export interface AppConfigSchema {
   danmuBoard: DanmuBoardConfig
   lottery: LotteryPreset
   voting: VotingPreset
+  horseRace: HorseRacePreset
 }
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
@@ -90,6 +100,19 @@ const DEFAULT_LOTTERY_PRESET: LotteryPreset = {
   minFansMedalLevel: 0
 }
 
+const DEFAULT_HORSE_RACE_PRESET: HorseRacePreset = {
+  horses: [
+    { key: '1', name: '红马', emoji: '🐎' },
+    { key: '2', name: '黑马', emoji: '🐴' },
+    { key: '3', name: '白马', emoji: '🦄' },
+    { key: '4', name: '黄马', emoji: '🐎' }
+  ],
+  enrollSec: 30,
+  raceSec: 25,
+  requireAnchorFansMedal: false,
+  minFansMedalLevel: 0
+}
+
 const DEFAULT_VOTING_PRESET: VotingPreset = {
   title: '晚饭吃什么？',
   options: [
@@ -112,7 +135,8 @@ const defaults: AppConfigSchema = {
   danmuOverlay: { ...DEFAULT_DANMU_OVERLAY },
   danmuBoard: { ...DEFAULT_DANMU_BOARD },
   lottery: { ...DEFAULT_LOTTERY_PRESET },
-  voting: { ...DEFAULT_VOTING_PRESET }
+  voting: { ...DEFAULT_VOTING_PRESET },
+  horseRace: { ...DEFAULT_HORSE_RACE_PRESET, horses: [...DEFAULT_HORSE_RACE_PRESET.horses] }
 }
 
 export class AppConfig {
@@ -268,6 +292,31 @@ export class AppConfig {
     const next: DanmuBoardConfig = { ...this.getDanmuBoard(), ...patch }
     this.setDanmuBoard(next)
     return next
+  }
+
+  // 赛马 preset
+  getHorseRacePreset(): HorseRacePreset {
+    const stored = this.store.get('horseRace') as HorseRacePreset | undefined
+    if (!stored)
+      return {
+        ...DEFAULT_HORSE_RACE_PRESET,
+        horses: [...DEFAULT_HORSE_RACE_PRESET.horses]
+      }
+    return {
+      horses:
+        Array.isArray(stored.horses) && stored.horses.length > 0
+          ? stored.horses.map((h) => ({ key: h.key, name: h.name, emoji: h.emoji ?? '🐎' }))
+          : [...DEFAULT_HORSE_RACE_PRESET.horses],
+      enrollSec: stored.enrollSec ?? DEFAULT_HORSE_RACE_PRESET.enrollSec,
+      raceSec: stored.raceSec ?? DEFAULT_HORSE_RACE_PRESET.raceSec,
+      requireAnchorFansMedal:
+        stored.requireAnchorFansMedal ?? DEFAULT_HORSE_RACE_PRESET.requireAnchorFansMedal,
+      minFansMedalLevel:
+        stored.minFansMedalLevel ?? DEFAULT_HORSE_RACE_PRESET.minFansMedalLevel
+    }
+  }
+  setHorseRacePreset(preset: HorseRacePreset): void {
+    this.store.set('horseRace', preset)
   }
 
   // 互动投票 preset

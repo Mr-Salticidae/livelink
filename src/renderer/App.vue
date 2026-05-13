@@ -7,6 +7,7 @@ import Rules from './pages/Rules.vue'
 import TTSSettings from './pages/TTSSettings.vue'
 import Lottery from './pages/Lottery.vue'
 import Voting from './pages/Voting.vue'
+import HorseRace from './pages/HorseRace.vue'
 import Logs from './pages/Logs.vue'
 import { currentPage, loadInitialData } from './store'
 
@@ -25,6 +26,7 @@ onMounted(() => {
         <TTSSettings v-else-if="currentPage === 'tts'" />
         <Lottery v-else-if="currentPage === 'lottery'" />
         <Voting v-else-if="currentPage === 'voting'" />
+        <HorseRace v-else-if="currentPage === 'horserace'" />
         <Logs v-else-if="currentPage === 'logs'" />
       </main>
     </div>

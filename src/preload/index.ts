@@ -130,6 +130,20 @@ const api = {
     return () => ipcRenderer.removeListener(IpcChannels.VotingStatusUpdate, handler)
   },
 
+  // 赛马
+  horseRaceStart: (config: unknown) =>
+    ipcRenderer.invoke(IpcChannels.HorseRaceStart, cleanForIpc(config)),
+  horseRaceCancel: () => ipcRenderer.invoke(IpcChannels.HorseRaceCancel),
+  horseRaceStartNow: () => ipcRenderer.invoke(IpcChannels.HorseRaceStartNow),
+  horseRaceReset: () => ipcRenderer.invoke(IpcChannels.HorseRaceReset),
+  horseRaceStatus: () => ipcRenderer.invoke(IpcChannels.HorseRaceStatus),
+  horseRaceGetPreset: () => ipcRenderer.invoke(IpcChannels.HorseRaceGetPreset),
+  onHorseRaceStatus: (cb: (s: unknown) => void) => {
+    const handler = (_: IpcRendererEvent, s: unknown): void => cb(s)
+    ipcRenderer.on(IpcChannels.HorseRaceStatusUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.HorseRaceStatusUpdate, handler)
+  },
+
   // 日志
   logRecent: (limit?: number) => ipcRenderer.invoke(IpcChannels.LogRecent, limit),
   logClear: () => ipcRenderer.invoke(IpcChannels.LogClear),

@@ -66,6 +66,15 @@ export const IpcChannels = {
   VotingStatusUpdate: 'voting:status-update',
   VotingGetPreset: 'voting:get-preset',
 
+  // 赛马
+  HorseRaceStart: 'horserace:start',
+  HorseRaceCancel: 'horserace:cancel',
+  HorseRaceStartNow: 'horserace:start-now',
+  HorseRaceReset: 'horserace:reset',
+  HorseRaceStatus: 'horserace:status',
+  HorseRaceStatusUpdate: 'horserace:status-update',
+  HorseRaceGetPreset: 'horserace:get-preset',
+
   // 日志（主→渲染 push）
   LogAppend: 'log:append',
   LogRecent: 'log:recent',

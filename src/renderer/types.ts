@@ -86,6 +86,49 @@ export interface DanmuBoardConfig {
   showGift: boolean
 }
 
+// 赛马
+export interface Horse {
+  key: string
+  name: string
+  emoji: string
+}
+export interface HorseRaceConfig {
+  horses: Horse[]
+  enrollSec: number
+  raceSec: number
+  requireAnchorFansMedal: boolean
+  minFansMedalLevel: number
+}
+export interface HorseRanking {
+  horseKey: string
+  position: number
+  rank: number
+}
+export type HorseRaceState =
+  | { phase: 'idle' }
+  | {
+      phase: 'enrolling'
+      config: HorseRaceConfig
+      startedAt: number
+      endsAt: number
+      enrollments: Record<string, number>
+    }
+  | {
+      phase: 'racing'
+      config: HorseRaceConfig
+      startedAt: number
+      positions: Record<string, number>
+      enrollments: Record<string, number>
+    }
+  | {
+      phase: 'done'
+      config: HorseRaceConfig
+      endedAt: number
+      rankings: HorseRanking[]
+      enrollments: Record<string, number>
+      winnerBettors: string[]
+    }
+
 // 互动投票
 export interface VotingOption {
   key: string
@@ -215,6 +258,15 @@ export interface ApiSurface {
   votingStatus: () => Promise<VotingState>
   votingGetPreset: () => Promise<VotingConfig>
   onVotingStatus: (cb: (s: VotingState) => void) => () => void
+
+  // 赛马
+  horseRaceStart: (config: HorseRaceConfig) => Promise<HorseRaceState>
+  horseRaceCancel: () => Promise<HorseRaceState>
+  horseRaceStartNow: () => Promise<HorseRaceState>
+  horseRaceReset: () => Promise<HorseRaceState>
+  horseRaceStatus: () => Promise<HorseRaceState>
+  horseRaceGetPreset: () => Promise<HorseRaceConfig>
+  onHorseRaceStatus: (cb: (s: HorseRaceState) => void) => () => void
 
   ruleList: () => Promise<Rule[]>
   ruleUpsert: (rule: Rule) => Promise<Rule[]>

@@ -7,6 +7,7 @@ const items: { key: PageKey; label: string; icon: string }[] = [
   { key: 'tts', label: 'TTS', icon: '🔊' },
   { key: 'lottery', label: '抽奖', icon: '🎰' },
   { key: 'voting', label: '投票', icon: '📊' },
+  { key: 'horserace', label: '赛马', icon: '🐎' },
   { key: 'logs', label: '日志', icon: '📝' }
 ]
 

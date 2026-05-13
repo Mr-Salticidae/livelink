@@ -11,6 +11,8 @@ import DanmuBoard from './components/DanmuBoard.vue'
 import SuperChatBanner from './components/SuperChatBanner.vue'
 import VotingCard from './components/VotingCard.vue'
 import VotingResultCard from './components/VotingResultCard.vue'
+import HorseRaceCard from './components/HorseRaceCard.vue'
+import HorseRaceResultCard from './components/HorseRaceResultCard.vue'
 
 type BoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 interface BoardConfig {
@@ -75,6 +77,24 @@ interface LotteryResultState {
   participantCount: number
 }
 
+interface HorseDef { key: string; name: string; emoji: string }
+interface HorseRanking { horseKey: string; position: number; rank: number }
+interface HorseRaceActive {
+  phase: 'enrolling' | 'racing'
+  horses: HorseDef[]
+  enrollments: Record<string, number>
+  positions: Record<string, number>
+  endsAt?: number
+}
+interface HorseRaceResult {
+  id: string
+  horses: HorseDef[]
+  rankings: HorseRanking[]
+  enrollments: Record<string, number>
+  winnerBettors: string[]
+  winnerHorseKey: string | null
+}
+
 interface VotingOption { key: string; label: string }
 interface VotingRunningState {
   title: string
@@ -124,6 +144,9 @@ const VOTING_RESULT_MS = 9_000
 
 const activeVoting = ref<VotingRunningState | null>(null)
 const activeVotingResult = ref<VotingResultState | null>(null)
+const HORSE_RESULT_MS = 10_000
+const activeHorseRace = ref<HorseRaceActive | null>(null)
+const activeHorseRaceResult = ref<HorseRaceResult | null>(null)
 
 // OBS 弹幕信息板：默认关闭，主进程通过 danmu.board.config 推送配置
 const danmuBoardConfig = ref<BoardConfig>({
@@ -316,6 +339,76 @@ onMounted(() => {
     activeVoting.value = null
   })
 
+  // 赛马
+  on<OverlayPayload>('horserace.enroll-start', (msg) => {
+    const x = msg.extra as
+      | { horses?: HorseDef[]; endsAt?: number; enrollments?: Record<string, number> }
+      | undefined
+    if (!x?.endsAt || !Array.isArray(x?.horses)) return
+    activeHorseRaceResult.value = null
+    activeHorseRace.value = {
+      phase: 'enrolling',
+      horses: x.horses,
+      enrollments: x.enrollments ?? {},
+      positions: {},
+      endsAt: x.endsAt
+    }
+  })
+  on<OverlayPayload>('horserace.enroll-tick', (msg) => {
+    const x = msg.extra as { enrollments?: Record<string, number> } | undefined
+    if (!activeHorseRace.value || activeHorseRace.value.phase !== 'enrolling' || !x?.enrollments) return
+    activeHorseRace.value = { ...activeHorseRace.value, enrollments: x.enrollments }
+  })
+  on<OverlayPayload>('horserace.race-start', (msg) => {
+    const x = msg.extra as
+      | {
+          horses?: HorseDef[]
+          positions?: Record<string, number>
+          enrollments?: Record<string, number>
+        }
+      | undefined
+    if (!Array.isArray(x?.horses)) return
+    activeHorseRace.value = {
+      phase: 'racing',
+      horses: x.horses,
+      enrollments: x.enrollments ?? activeHorseRace.value?.enrollments ?? {},
+      positions: x.positions ?? {}
+    }
+  })
+  on<OverlayPayload>('horserace.tick', (msg) => {
+    const x = msg.extra as { positions?: Record<string, number> } | undefined
+    if (!activeHorseRace.value || activeHorseRace.value.phase !== 'racing' || !x?.positions) return
+    activeHorseRace.value = { ...activeHorseRace.value, positions: x.positions }
+  })
+  on<OverlayPayload>('horserace.result', (msg) => {
+    const x = msg.extra as
+      | {
+          horses?: HorseDef[]
+          rankings?: HorseRanking[]
+          enrollments?: Record<string, number>
+          winnerBettors?: string[]
+          winnerHorseKey?: string | null
+        }
+      | undefined
+    activeHorseRace.value = null
+    if (!Array.isArray(x?.horses) || !Array.isArray(x?.rankings)) return
+    const result: HorseRaceResult = {
+      id: uid(),
+      horses: x.horses,
+      rankings: x.rankings,
+      enrollments: x.enrollments ?? {},
+      winnerBettors: x.winnerBettors ?? [],
+      winnerHorseKey: x.winnerHorseKey ?? null
+    }
+    activeHorseRaceResult.value = result
+    window.setTimeout(() => {
+      if (activeHorseRaceResult.value?.id === result.id) activeHorseRaceResult.value = null
+    }, HORSE_RESULT_MS)
+  })
+  on<OverlayPayload>('horserace.cancelled', () => {
+    activeHorseRace.value = null
+  })
+
   // SuperChat 横幅：系统级 broadcast，不依赖规则引擎。按价位放顶部 / 中央
   on<OverlayPayload>('super.chat.banner', (msg) => {
     const ev = msg.event
@@ -470,6 +563,35 @@ onMounted(() => {
         :price="sc.price"
         :avatar="sc.avatar"
         :duration-sec="sc.durationSec"
+      />
+    </div>
+
+    <!-- 赛马进行中（报名 + 比赛同位置） -->
+    <div
+      v-if="activeHorseRace"
+      class="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2"
+    >
+      <HorseRaceCard
+        :phase="activeHorseRace.phase"
+        :horses="activeHorseRace.horses"
+        :enrollments="activeHorseRace.enrollments"
+        :positions="activeHorseRace.positions"
+        :ends-at="activeHorseRace.endsAt"
+      />
+    </div>
+
+    <!-- 赛马结果卡（屏幕中央） -->
+    <div
+      v-if="activeHorseRaceResult"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+    >
+      <HorseRaceResultCard
+        :key="activeHorseRaceResult.id"
+        :horses="activeHorseRaceResult.horses"
+        :rankings="activeHorseRaceResult.rankings"
+        :enrollments="activeHorseRaceResult.enrollments"
+        :winner-bettors="activeHorseRaceResult.winnerBettors"
+        :winner-horse-key="activeHorseRaceResult.winnerHorseKey"
       />
     </div>
 

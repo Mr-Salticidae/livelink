@@ -3,6 +3,7 @@ import type {
   BilibiliAuth,
   ConnectionStatus,
   DanmuBoardConfig,
+  HorseRaceState,
   LogEntry,
   LotteryState,
   OverlayState,
@@ -27,6 +28,7 @@ export const danmuOverlayEnabled = ref<boolean>(false)
 export const danmuOverlayPinned = ref<boolean>(false)
 export const lotteryState = ref<LotteryState>({ phase: 'idle' })
 export const votingState = ref<VotingState>({ phase: 'idle' })
+export const horseRaceState = ref<HorseRaceState>({ phase: 'idle' })
 export const danmuBoard = ref<DanmuBoardConfig>({
   enabled: false,
   position: 'bottom-left',
@@ -35,7 +37,7 @@ export const danmuBoard = ref<DanmuBoardConfig>({
   showGift: true
 })
 
-export type PageKey = 'home' | 'rules' | 'tts' | 'lottery' | 'voting' | 'logs'
+export type PageKey = 'home' | 'rules' | 'tts' | 'lottery' | 'voting' | 'horserace' | 'logs'
 export const currentPage = ref<PageKey>('home')
 
 export const enabledRuleCount = computed(() => rules.value.filter((r) => r.enabled).length)
@@ -114,6 +116,8 @@ export async function loadInitialData(): Promise<void> {
   await initLottery()
   // 投票初始化
   await initVoting()
+  // 赛马初始化
+  await initHorseRace()
 
   // OBS 弹幕信息板配置初始化
   try {
@@ -170,6 +174,17 @@ export async function initVoting(): Promise<void> {
   }
   window.api.onVotingStatus((s) => {
     votingState.value = s
+  })
+}
+
+export async function initHorseRace(): Promise<void> {
+  try {
+    horseRaceState.value = await window.api.horseRaceStatus()
+  } catch (err) {
+    console.error('horseRaceStatus failed', err)
+  }
+  window.api.onHorseRaceStatus((s) => {
+    horseRaceState.value = s
   })
 }
 
