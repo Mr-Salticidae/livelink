@@ -74,6 +74,16 @@ export interface OverlayState {
   retrying: boolean
 }
 
+// OBS 弹幕信息板
+export type DanmuBoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+export interface DanmuBoardConfig {
+  enabled: boolean
+  position: DanmuBoardPosition
+  maxLines: number
+  fontSize: number
+  showGift: boolean
+}
+
 // 弹幕抽奖
 export interface LotteryConfig {
   prize: string
@@ -148,6 +158,10 @@ export interface ApiSurface {
   onDanmuOverlayRoomStats: (
     cb: (stats: { watchedNum: number; watchedText: string }) => void
   ) => () => void
+
+  // OBS 弹幕信息板
+  getDanmuBoard: () => Promise<DanmuBoardConfig>
+  patchDanmuBoard: (patch: Partial<DanmuBoardConfig>) => Promise<DanmuBoardConfig>
 
   // 弹幕抽奖
   lotteryStart: (config: LotteryConfig) => Promise<LotteryState>

@@ -23,6 +23,16 @@ export interface LotteryPreset {
   minFansMedalLevel: number
 }
 
+// OBS 弹幕信息板（给观众看的直播屏 overlay，区别于主播自己看的弹幕悬浮窗）
+export type DanmuBoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+export interface DanmuBoardConfig {
+  enabled: boolean
+  position: DanmuBoardPosition
+  maxLines: number // 同时显示条数上限 5-30
+  fontSize: number // 字号 12-24 px
+  showGift: boolean // 礼物事件是否也进面板（默认 true）
+}
+
 // 弹幕悬浮窗（主播全屏游戏时瞟弹幕用）
 export interface DanmuOverlayConfig {
   enabled: boolean // 启动时是否自动打开（持久化记忆）
@@ -40,6 +50,7 @@ export interface AppConfigSchema {
   platform: { active: 'bilibili' }
   auth: { bilibili: BilibiliAuth }
   danmuOverlay: DanmuOverlayConfig
+  danmuBoard: DanmuBoardConfig
   lottery: LotteryPreset
 }
 
@@ -49,6 +60,14 @@ const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
   bounds: null,
   opacity: 0.85,
   fontSize: 14
+}
+
+const DEFAULT_DANMU_BOARD: DanmuBoardConfig = {
+  enabled: false, // 默认关闭，避免新装用户直播屏意外多出弹幕板
+  position: 'bottom-left',
+  maxLines: 10,
+  fontSize: 16,
+  showGift: true
 }
 
 const DEFAULT_LOTTERY_PRESET: LotteryPreset = {
@@ -68,6 +87,7 @@ const defaults: AppConfigSchema = {
   platform: { active: 'bilibili' },
   auth: { bilibili: { sessdata: '', uid: '', buvid: '' } },
   danmuOverlay: { ...DEFAULT_DANMU_OVERLAY },
+  danmuBoard: { ...DEFAULT_DANMU_BOARD },
   lottery: { ...DEFAULT_LOTTERY_PRESET }
 }
 
@@ -177,6 +197,27 @@ export class AppConfig {
   patchDanmuOverlay(patch: Partial<DanmuOverlayConfig>): DanmuOverlayConfig {
     const next: DanmuOverlayConfig = { ...this.getDanmuOverlay(), ...patch }
     this.setDanmuOverlay(next)
+    return next
+  }
+
+  // OBS 弹幕信息板
+  getDanmuBoard(): DanmuBoardConfig {
+    const stored = this.store.get('danmuBoard') as DanmuBoardConfig | undefined
+    if (!stored) return { ...DEFAULT_DANMU_BOARD }
+    return {
+      enabled: stored.enabled ?? DEFAULT_DANMU_BOARD.enabled,
+      position: stored.position ?? DEFAULT_DANMU_BOARD.position,
+      maxLines: typeof stored.maxLines === 'number' ? stored.maxLines : DEFAULT_DANMU_BOARD.maxLines,
+      fontSize: typeof stored.fontSize === 'number' ? stored.fontSize : DEFAULT_DANMU_BOARD.fontSize,
+      showGift: stored.showGift ?? DEFAULT_DANMU_BOARD.showGift
+    }
+  }
+  setDanmuBoard(cfg: DanmuBoardConfig): void {
+    this.store.set('danmuBoard', cfg)
+  }
+  patchDanmuBoard(patch: Partial<DanmuBoardConfig>): DanmuBoardConfig {
+    const next: DanmuBoardConfig = { ...this.getDanmuBoard(), ...patch }
+    this.setDanmuBoard(next)
     return next
   }
 

@@ -5,7 +5,7 @@ import type { RuleEngine } from './rules/engine'
 import { TTSPlayer, VOICE_OPTIONS, type TTSConfig } from './actions/tts'
 import type { OverlayServer } from './overlay-server/server'
 import type { OverlayController } from './overlay-controller'
-import type { AppConfig, BilibiliAuth } from './config/store'
+import type { AppConfig, BilibiliAuth, DanmuBoardConfig } from './config/store'
 import type { LogSink, LogEntry } from './actions/log'
 import type { Rule } from './rules/types'
 import type { DanmuOverlayWindow } from './danmu-overlay-window'
@@ -194,6 +194,26 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   // 把弹幕窗状态变化推到主窗口 UI（开关 toggle UI 状态）
   danmuOverlay.onStatusChange((s) => {
     deps.getMainWindow()?.webContents.send(IpcChannels.DanmuOverlayStatusUpdate, s)
+  })
+
+  // ─── OBS 弹幕信息板 ─────────────────────────────────────────
+  ipcMain.handle(IpcChannels.DanmuBoardGet, () => config.getDanmuBoard())
+  ipcMain.handle(IpcChannels.DanmuBoardPatch, (_e, patch: Partial<DanmuBoardConfig>) => {
+    const next = config.patchDanmuBoard(patch)
+    // 配置变更后推到 overlay namespace 让所有 OBS 浏览器源实时刷新
+    overlayServer.broadcast({
+      kind: 'danmu.board.config',
+      // 占位 event 不被 overlay 端使用，仅为 OverlayMessage schema 满足
+      event: {
+        kind: 'viewer.enter',
+        platform: 'bilibili',
+        timestamp: Date.now(),
+        user: { uid: '0', uname: '' },
+        payload: {}
+      },
+      extra: { ...next }
+    })
+    return next
   })
 
   // ─── 弹幕抽奖 ──────────────────────────────────────────────

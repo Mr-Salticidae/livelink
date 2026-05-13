@@ -42,6 +42,11 @@ export const IpcChannels = {
   DanmuOverlayEvent: 'danmu-overlay:event', // 主→子窗 push 弹幕 / 礼物事件
   DanmuOverlayRoomStats: 'danmu-overlay:room-stats', // 主→子窗 push 在线人数
 
+  // OBS 弹幕信息板
+  DanmuBoardGet: 'danmu-board:get',
+  DanmuBoardPatch: 'danmu-board:patch',
+  DanmuBoardConfigPush: 'danmu-board:config-push', // 主→overlay namespace 推送 settings 变更
+
   // 弹幕抽奖
   LotteryStart: 'lottery:start',
   LotteryCancel: 'lottery:cancel',

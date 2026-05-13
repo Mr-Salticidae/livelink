@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import type {
   BilibiliAuth,
   ConnectionStatus,
+  DanmuBoardConfig,
   LogEntry,
   LotteryState,
   OverlayState,
@@ -24,6 +25,13 @@ export const logs = ref<LogEntry[]>([])
 export const danmuOverlayEnabled = ref<boolean>(false)
 export const danmuOverlayPinned = ref<boolean>(false)
 export const lotteryState = ref<LotteryState>({ phase: 'idle' })
+export const danmuBoard = ref<DanmuBoardConfig>({
+  enabled: false,
+  position: 'bottom-left',
+  maxLines: 10,
+  fontSize: 16,
+  showGift: true
+})
 
 export type PageKey = 'home' | 'rules' | 'tts' | 'lottery' | 'logs'
 export const currentPage = ref<PageKey>('home')
@@ -102,6 +110,21 @@ export async function loadInitialData(): Promise<void> {
 
   // 抽奖初始化
   await initLottery()
+
+  // OBS 弹幕信息板配置初始化
+  try {
+    danmuBoard.value = await api.getDanmuBoard()
+  } catch (err) {
+    console.error('getDanmuBoard failed', err)
+  }
+}
+
+export async function patchDanmuBoard(patch: Partial<DanmuBoardConfig>): Promise<void> {
+  try {
+    danmuBoard.value = await window.api.patchDanmuBoard(patch)
+  } catch (err) {
+    console.error('patchDanmuBoard failed', err)
+  }
 }
 
 export async function toggleDanmuOverlay(): Promise<void> {

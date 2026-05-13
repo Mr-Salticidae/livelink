@@ -28,7 +28,22 @@ export class OverlayController {
       const port = await this.server.start({
         rendererDir: this.rendererDir,
         preferredPort: this.config.getOverlayPort(),
-        giftService: this.giftServiceGetter() ?? undefined
+        giftService: this.giftServiceGetter() ?? undefined,
+        // 新 OBS 浏览器源连上时，立即把当前 danmu board config 发过去。
+        // 否则浏览器源刚加载，没收到 patch broadcast，无法判断 enabled / 位置等
+        onSocketConnect: (socket) => {
+          socket.emit('danmu.board.config', {
+            kind: 'danmu.board.config',
+            event: {
+              kind: 'viewer.enter',
+              platform: 'bilibili',
+              timestamp: Date.now(),
+              user: { uid: '0', uname: '' },
+              payload: {}
+            },
+            extra: { ...this.config.getDanmuBoard() }
+          })
+        }
       })
       this.config.setOverlayPort(port)
       this.broadcaster.setSender((msg) => this.server.broadcast(msg))

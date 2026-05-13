@@ -94,6 +94,11 @@ const api = {
     ipcRenderer.invoke(IpcChannels.RuleUpsert, cleanForIpc(rule)),
   ruleDelete: (id: string) => ipcRenderer.invoke(IpcChannels.RuleDelete, id),
 
+  // OBS 弹幕信息板
+  getDanmuBoard: () => ipcRenderer.invoke(IpcChannels.DanmuBoardGet),
+  patchDanmuBoard: (patch: Record<string, unknown>) =>
+    ipcRenderer.invoke(IpcChannels.DanmuBoardPatch, cleanForIpc(patch)),
+
   // 弹幕抽奖
   lotteryStart: (config: unknown) =>
     ipcRenderer.invoke(IpcChannels.LotteryStart, cleanForIpc(config)),

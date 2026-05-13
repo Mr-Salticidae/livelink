@@ -13,8 +13,18 @@ import {
   danmuOverlayEnabled,
   danmuOverlayPinned,
   toggleDanmuOverlay,
-  toggleDanmuOverlayPin
+  toggleDanmuOverlayPin,
+  danmuBoard,
+  patchDanmuBoard
 } from '../store'
+import type { DanmuBoardPosition } from '../types'
+
+const BOARD_POSITIONS: { value: DanmuBoardPosition; label: string }[] = [
+  { value: 'top-left', label: '左上' },
+  { value: 'top-right', label: '右上' },
+  { value: 'bottom-left', label: '左下' },
+  { value: 'bottom-right', label: '右下' }
+]
 import type { Rule } from '../types'
 import BilibiliAuthAdvanced from '../components/BilibiliAuthAdvanced.vue'
 
@@ -204,6 +214,84 @@ async function copyOverlayUrl(): Promise<void> {
         <li>2. 起个名字（比如"LiveLink Overlay"）→ 确定。</li>
         <li>3. 把上面这个 URL 粘贴到"URL"栏 → 宽度 1920、高度 1080 → 确定。直播间一有动静，特效就会出现。</li>
       </ol>
+    </section>
+
+    <!-- OBS 弹幕信息板（给观众看的直播屏 overlay） -->
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <h2 class="text-sm font-medium text-slate-300">直播屏弹幕信息板</h2>
+          <p class="mt-1 text-xs text-slate-500">
+            在 OBS 浏览器源上叠加一块半透明弹幕滚动列表给<strong class="text-slate-300">观众看</strong>。
+            自动出现在直播画面里（不是主播自己看那个悬浮窗）。
+          </p>
+        </div>
+        <button
+          class="relative h-5 w-9 shrink-0 rounded-full transition"
+          :class="danmuBoard.enabled ? 'bg-emerald-500' : 'bg-slate-600'"
+          @click="patchDanmuBoard({ enabled: !danmuBoard.enabled })"
+          :title="danmuBoard.enabled ? '关闭信息板' : '打开信息板'"
+        >
+          <span
+            class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition"
+            :class="danmuBoard.enabled ? 'translate-x-4' : 'translate-x-0'"
+          ></span>
+        </button>
+      </div>
+
+      <!-- 详细配置：开启时才显示 -->
+      <div v-if="danmuBoard.enabled" class="space-y-3 rounded-lg bg-slate-950/40 p-3">
+        <div>
+          <label class="text-xs text-slate-400">位置</label>
+          <div class="mt-1 grid grid-cols-4 gap-1">
+            <button
+              v-for="p in BOARD_POSITIONS"
+              :key="p.value"
+              @click="patchDanmuBoard({ position: p.value })"
+              class="rounded border px-2 py-1 text-xs transition"
+              :class="
+                danmuBoard.position === p.value
+                  ? 'border-sky-500 bg-sky-500/15 text-sky-200'
+                  : 'border-slate-700 bg-slate-950 text-slate-400 hover:text-slate-200'
+              "
+            >{{ p.label }}</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <label class="text-xs text-slate-400">
+            最多显示条数（5-30）
+            <input
+              :value="danmuBoard.maxLines"
+              @change="patchDanmuBoard({ maxLines: Number(($event.target as HTMLInputElement).value) })"
+              type="number" min="5" max="30"
+              class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+            />
+          </label>
+          <label class="text-xs text-slate-400">
+            字号（12-24）
+            <input
+              :value="danmuBoard.fontSize"
+              @change="patchDanmuBoard({ fontSize: Number(($event.target as HTMLInputElement).value) })"
+              type="number" min="12" max="24"
+              class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+            />
+          </label>
+        </div>
+
+        <label class="flex items-center gap-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            :checked="danmuBoard.showGift"
+            @change="patchDanmuBoard({ showGift: ($event.target as HTMLInputElement).checked })"
+          />
+          <span>礼物事件也进信息板（金色显示）</span>
+        </label>
+
+        <p class="text-[11px] text-slate-500 leading-relaxed">
+          配置改后 OBS 浏览器源自动刷新，不用手动重载源。
+        </p>
+      </div>
     </section>
 
     <!-- 弹幕悬浮窗：单屏主播全屏游戏时瞟弹幕用 -->

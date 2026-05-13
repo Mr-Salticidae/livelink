@@ -69,6 +69,24 @@ bus.on('event', (e) => {
   blindboxStore.record(roomId, e)
 })
 
+// OBS 弹幕信息板：系统级 overlay 推送（不走规则引擎，避免污染用户规则集）。
+// enabled=false 时不 broadcast，开关由 Home 页 toggle 控制
+bus.on('event', (e) => {
+  const cfg = config.getDanmuBoard()
+  if (!cfg.enabled) return
+  if (e.kind === 'danmu.received') {
+    overlayBroadcaster.broadcast({
+      kind: 'danmu.board.item',
+      event: e
+    })
+  } else if (e.kind === 'gift.received' && cfg.showGift) {
+    overlayBroadcaster.broadcast({
+      kind: 'danmu.board.item',
+      event: e
+    })
+  }
+})
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1100,

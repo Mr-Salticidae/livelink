@@ -2,7 +2,7 @@ import { createServer, type Server as HttpServer } from 'node:http'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import express from 'express'
-import { Server as IOServer, type Namespace } from 'socket.io'
+import { Server as IOServer, type Namespace, type Socket } from 'socket.io'
 import type { OverlayMessage } from '../actions/overlay'
 import { findAvailablePort } from './port'
 import { GiftService } from '../services/gift-config'
@@ -13,6 +13,8 @@ export interface OverlayServerOptions {
   rendererDir: string // 指向 out/renderer/
   preferredPort?: number
   giftService?: GiftService // 注入后启用 /api/gift/:id
+  // 新 socket 连入时回调（给上层机会推 init snapshot，例如 danmu board config）
+  onSocketConnect?: (socket: Socket) => void
 }
 
 export class OverlayServer {
@@ -92,8 +94,14 @@ export class OverlayServer {
     })
     const overlayNs = io.of('/overlay')
 
+    const onSocketConnect = options.onSocketConnect
     overlayNs.on('connection', (socket) => {
       console.log(`[OverlayServer] client connected: ${socket.id}`)
+      try {
+        onSocketConnect?.(socket)
+      } catch (err) {
+        console.error('[OverlayServer] onSocketConnect threw', err)
+      }
       socket.on('disconnect', () => {
         console.log(`[OverlayServer] client disconnected: ${socket.id}`)
       })

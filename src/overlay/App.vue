@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { on } from './socket'
 import type { OverlayPayload } from './types'
 import GiftEffect from './components/GiftEffect.vue'
@@ -7,6 +7,16 @@ import ViewerEnterBanner from './components/ViewerEnterBanner.vue'
 import BlindboxCard from './components/BlindboxCard.vue'
 import LotteryCard from './components/LotteryCard.vue'
 import LotteryResultCard from './components/LotteryResultCard.vue'
+import DanmuBoard from './components/DanmuBoard.vue'
+
+type BoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+interface BoardConfig {
+  enabled: boolean
+  position: BoardPosition
+  maxLines: number
+  fontSize: number
+  showGift: boolean
+}
 
 interface GiftItem {
   id: string
@@ -74,6 +84,26 @@ const activeEnters = ref<EnterItem[]>([])
 const activeBlindboxCard = ref<BlindboxCardItem | null>(null)
 const activeLottery = ref<LotteryRunningState | null>(null)
 const activeLotteryResult = ref<LotteryResultState | null>(null)
+
+// OBS 弹幕信息板：默认关闭，主进程通过 danmu.board.config 推送配置
+const danmuBoardConfig = ref<BoardConfig>({
+  enabled: false,
+  position: 'bottom-left',
+  maxLines: 10,
+  fontSize: 16,
+  showGift: true
+})
+const danmuBoardRef = ref<InstanceType<typeof DanmuBoard> | null>(null)
+const boardPosStyle = computed(() => {
+  const PAD = '24px'
+  switch (danmuBoardConfig.value.position) {
+    case 'top-left': return { top: PAD, left: PAD }
+    case 'top-right': return { top: PAD, right: PAD }
+    case 'bottom-right': return { bottom: PAD, right: PAD }
+    case 'bottom-left':
+    default: return { bottom: PAD, left: PAD }
+  }
+})
 
 const uid = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -192,6 +222,44 @@ onMounted(() => {
   on<OverlayPayload>('lottery.cancelled', () => {
     activeLottery.value = null
   })
+
+  // OBS 弹幕信息板配置推送（启动 / Home 页改配置时 push）
+  on<OverlayPayload>('danmu.board.config', (msg) => {
+    const x = msg.extra as Partial<BoardConfig> | undefined
+    if (!x) return
+    danmuBoardConfig.value = { ...danmuBoardConfig.value, ...x }
+  })
+
+  // OBS 弹幕信息板：每条弹幕 / 礼物（仅 enabled 时主进程才推）
+  on<OverlayPayload>('danmu.board.item', (msg) => {
+    const ev = msg.event
+    const item = {
+      id: uid(),
+      kind: (ev.kind === 'gift.received' ? 'gift' : 'danmu') as 'danmu' | 'gift',
+      uname: ev.user?.uname ?? '观众',
+      guardLevel: ev.user?.guardLevel ?? 0,
+      isAnchor: false,
+      fansMedalLevel: 0,
+      content: undefined as string | undefined,
+      giftName: undefined as string | undefined,
+      num: undefined as number | undefined
+    }
+    // user 上还可能有 fansMedal（main 端 toUserInfo 加的）
+    const u = ev.user as unknown as { fansMedal?: { isAnchor: boolean; level: number } }
+    if (u?.fansMedal) {
+      item.isAnchor = u.fansMedal.isAnchor
+      item.fansMedalLevel = u.fansMedal.level
+    }
+    if (ev.kind === 'gift.received') {
+      const p = ev.payload as { giftName?: string; num?: number }
+      item.giftName = p?.giftName ?? '礼物'
+      item.num = typeof p?.num === 'number' ? p.num : 1
+    } else {
+      const p = ev.payload as { content?: string }
+      item.content = p?.content ?? ''
+    }
+    danmuBoardRef.value?.push(item)
+  })
 })
 </script>
 
@@ -252,6 +320,15 @@ onMounted(() => {
         :prize="activeLotteryResult.prize"
         :winners="activeLotteryResult.winners"
         :participant-count="activeLotteryResult.participantCount"
+      />
+    </div>
+
+    <!-- OBS 弹幕信息板（给观众看），enabled 时按 position 定位 -->
+    <div v-if="danmuBoardConfig.enabled" class="absolute" :style="boardPosStyle">
+      <DanmuBoard
+        ref="danmuBoardRef"
+        :max-lines="danmuBoardConfig.maxLines"
+        :font-size="danmuBoardConfig.fontSize"
       />
     </div>
   </div>
