@@ -5,6 +5,7 @@ const items: { key: PageKey; label: string; icon: string }[] = [
   { key: 'home', label: '首页', icon: '🏠' },
   { key: 'rules', label: '规则', icon: '📜' },
   { key: 'tts', label: 'TTS', icon: '🔊' },
+  { key: 'lottery', label: '抽奖', icon: '🎰' },
   { key: 'logs', label: '日志', icon: '📝' }
 ]
 

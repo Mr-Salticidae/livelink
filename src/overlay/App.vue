@@ -5,6 +5,8 @@ import type { OverlayPayload } from './types'
 import GiftEffect from './components/GiftEffect.vue'
 import ViewerEnterBanner from './components/ViewerEnterBanner.vue'
 import BlindboxCard from './components/BlindboxCard.vue'
+import LotteryCard from './components/LotteryCard.vue'
+import LotteryResultCard from './components/LotteryResultCard.vue'
 
 interface GiftItem {
   id: string
@@ -45,15 +47,33 @@ interface BlindboxCardItem {
   record: BlindboxRecord
 }
 
+interface LotteryRunningState {
+  prize: string
+  keyword: string
+  winnerCount: number
+  endsAt: number
+  participantCount: number
+}
+
+interface LotteryResultState {
+  id: string
+  prize: string
+  winners: Array<{ uid: string; uname: string }>
+  participantCount: number
+}
+
 const MAX_ACTIVE_GIFTS = 3
 const GIFT_VISIBLE_MS = 4000
 const ENTER_VISIBLE_MS = 4500
 const BLINDBOX_VISIBLE_MS = 7000
+const LOTTERY_RESULT_MS = 10_000
 
 const activeGifts = ref<GiftItem[]>([])
 const giftQueue = ref<GiftItem[]>([])
 const activeEnters = ref<EnterItem[]>([])
 const activeBlindboxCard = ref<BlindboxCardItem | null>(null)
+const activeLottery = ref<LotteryRunningState | null>(null)
+const activeLotteryResult = ref<LotteryResultState | null>(null)
 
 const uid = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -125,6 +145,53 @@ onMounted(() => {
       if (activeBlindboxCard.value?.id === item.id) activeBlindboxCard.value = null
     }, BLINDBOX_VISIBLE_MS)
   })
+
+  // 抽奖：start / tick / result / cancelled
+  on<OverlayPayload>('lottery.start', (msg) => {
+    const x = msg.extra as
+      | { prize?: string; keyword?: string; winnerCount?: number; endsAt?: number }
+      | undefined
+    if (!x?.endsAt) return
+    activeLotteryResult.value = null // 新一轮开始，清掉旧结果卡
+    activeLottery.value = {
+      prize: x.prize ?? '',
+      keyword: x.keyword ?? '',
+      winnerCount: x.winnerCount ?? 1,
+      endsAt: x.endsAt,
+      participantCount: 0
+    }
+  })
+
+  on<OverlayPayload>('lottery.tick', (msg) => {
+    const x = msg.extra as { participantCount?: number } | undefined
+    if (!activeLottery.value || typeof x?.participantCount !== 'number') return
+    activeLottery.value = { ...activeLottery.value, participantCount: x.participantCount }
+  })
+
+  on<OverlayPayload>('lottery.result', (msg) => {
+    const x = msg.extra as
+      | {
+          prize?: string
+          winners?: Array<{ uid: string; uname: string }>
+          participantCount?: number
+        }
+      | undefined
+    activeLottery.value = null // 进行中卡片让位给结果卡
+    const result: LotteryResultState = {
+      id: uid(),
+      prize: x?.prize ?? '',
+      winners: x?.winners ?? [],
+      participantCount: x?.participantCount ?? 0
+    }
+    activeLotteryResult.value = result
+    window.setTimeout(() => {
+      if (activeLotteryResult.value?.id === result.id) activeLotteryResult.value = null
+    }, LOTTERY_RESULT_MS)
+  })
+
+  on<OverlayPayload>('lottery.cancelled', () => {
+    activeLottery.value = null
+  })
 })
 </script>
 
@@ -158,6 +225,33 @@ onMounted(() => {
         :key="activeBlindboxCard.id"
         :uname="activeBlindboxCard.uname"
         :record="activeBlindboxCard.record"
+      />
+    </div>
+
+    <!-- 屏幕中央抽奖进行中卡 -->
+    <div
+      v-if="activeLottery"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+    >
+      <LotteryCard
+        :prize="activeLottery.prize"
+        :keyword="activeLottery.keyword"
+        :winner-count="activeLottery.winnerCount"
+        :ends-at="activeLottery.endsAt"
+        :participant-count="activeLottery.participantCount"
+      />
+    </div>
+
+    <!-- 屏幕中央抽奖结果卡 -->
+    <div
+      v-if="activeLotteryResult"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+    >
+      <LotteryResultCard
+        :key="activeLotteryResult.id"
+        :prize="activeLotteryResult.prize"
+        :winners="activeLotteryResult.winners"
+        :participant-count="activeLotteryResult.participantCount"
       />
     </div>
   </div>

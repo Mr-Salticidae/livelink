@@ -42,6 +42,16 @@ export const IpcChannels = {
   DanmuOverlayEvent: 'danmu-overlay:event', // 主→子窗 push 弹幕 / 礼物事件
   DanmuOverlayRoomStats: 'danmu-overlay:room-stats', // 主→子窗 push 在线人数
 
+  // 弹幕抽奖
+  LotteryStart: 'lottery:start',
+  LotteryCancel: 'lottery:cancel',
+  LotteryDrawNow: 'lottery:draw-now',
+  LotteryReset: 'lottery:reset',
+  LotteryStatus: 'lottery:status',
+  LotteryStatusUpdate: 'lottery:status-update', // 主→渲染 push
+  LotteryGetPreset: 'lottery:get-preset',
+  LotterySavePreset: 'lottery:save-preset',
+
   // 日志（主→渲染 push）
   LogAppend: 'log:append',
   LogRecent: 'log:recent',

@@ -5,6 +5,7 @@ import StatusBar from './components/StatusBar.vue'
 import Home from './pages/Home.vue'
 import Rules from './pages/Rules.vue'
 import TTSSettings from './pages/TTSSettings.vue'
+import Lottery from './pages/Lottery.vue'
 import Logs from './pages/Logs.vue'
 import { currentPage, loadInitialData } from './store'
 
@@ -21,6 +22,7 @@ onMounted(() => {
         <Home v-if="currentPage === 'home'" />
         <Rules v-else-if="currentPage === 'rules'" />
         <TTSSettings v-else-if="currentPage === 'tts'" />
+        <Lottery v-else-if="currentPage === 'lottery'" />
         <Logs v-else-if="currentPage === 'logs'" />
       </main>
     </div>

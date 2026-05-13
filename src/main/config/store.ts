@@ -13,6 +13,16 @@ export interface BilibiliAuth {
   buvid: string // buvid3，可选
 }
 
+// 弹幕抽奖的上次使用参数，主播下次开新一轮时回填表单
+export interface LotteryPreset {
+  prize: string
+  keyword: string
+  winnerCount: number
+  durationSec: number
+  requireAnchorFansMedal: boolean
+  minFansMedalLevel: number
+}
+
 // 弹幕悬浮窗（主播全屏游戏时瞟弹幕用）
 export interface DanmuOverlayConfig {
   enabled: boolean // 启动时是否自动打开（持久化记忆）
@@ -30,6 +40,7 @@ export interface AppConfigSchema {
   platform: { active: 'bilibili' }
   auth: { bilibili: BilibiliAuth }
   danmuOverlay: DanmuOverlayConfig
+  lottery: LotteryPreset
 }
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
@@ -40,6 +51,15 @@ const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
   fontSize: 14
 }
 
+const DEFAULT_LOTTERY_PRESET: LotteryPreset = {
+  prize: '神秘奖品',
+  keyword: '抽奖',
+  winnerCount: 1,
+  durationSec: 60,
+  requireAnchorFansMedal: false,
+  minFansMedalLevel: 0
+}
+
 const defaults: AppConfigSchema = {
   room: { id: '' },
   rules: defaultRules,
@@ -47,7 +67,8 @@ const defaults: AppConfigSchema = {
   overlay: { port: 38501 },
   platform: { active: 'bilibili' },
   auth: { bilibili: { sessdata: '', uid: '', buvid: '' } },
-  danmuOverlay: { ...DEFAULT_DANMU_OVERLAY }
+  danmuOverlay: { ...DEFAULT_DANMU_OVERLAY },
+  lottery: { ...DEFAULT_LOTTERY_PRESET }
 }
 
 export class AppConfig {
@@ -157,6 +178,24 @@ export class AppConfig {
     const next: DanmuOverlayConfig = { ...this.getDanmuOverlay(), ...patch }
     this.setDanmuOverlay(next)
     return next
+  }
+
+  // 弹幕抽奖 preset
+  getLotteryPreset(): LotteryPreset {
+    const stored = this.store.get('lottery') as LotteryPreset | undefined
+    if (!stored) return { ...DEFAULT_LOTTERY_PRESET }
+    return {
+      prize: stored.prize ?? DEFAULT_LOTTERY_PRESET.prize,
+      keyword: stored.keyword ?? DEFAULT_LOTTERY_PRESET.keyword,
+      winnerCount: stored.winnerCount ?? DEFAULT_LOTTERY_PRESET.winnerCount,
+      durationSec: stored.durationSec ?? DEFAULT_LOTTERY_PRESET.durationSec,
+      requireAnchorFansMedal:
+        stored.requireAnchorFansMedal ?? DEFAULT_LOTTERY_PRESET.requireAnchorFansMedal,
+      minFansMedalLevel: stored.minFansMedalLevel ?? DEFAULT_LOTTERY_PRESET.minFansMedalLevel
+    }
+  }
+  setLotteryPreset(preset: LotteryPreset): void {
+    this.store.set('lottery', preset)
   }
 }
 

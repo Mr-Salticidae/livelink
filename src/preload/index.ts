@@ -94,6 +94,22 @@ const api = {
     ipcRenderer.invoke(IpcChannels.RuleUpsert, cleanForIpc(rule)),
   ruleDelete: (id: string) => ipcRenderer.invoke(IpcChannels.RuleDelete, id),
 
+  // 弹幕抽奖
+  lotteryStart: (config: unknown) =>
+    ipcRenderer.invoke(IpcChannels.LotteryStart, cleanForIpc(config)),
+  lotteryCancel: () => ipcRenderer.invoke(IpcChannels.LotteryCancel),
+  lotteryDrawNow: () => ipcRenderer.invoke(IpcChannels.LotteryDrawNow),
+  lotteryReset: () => ipcRenderer.invoke(IpcChannels.LotteryReset),
+  lotteryStatus: () => ipcRenderer.invoke(IpcChannels.LotteryStatus),
+  lotteryGetPreset: () => ipcRenderer.invoke(IpcChannels.LotteryGetPreset),
+  lotterySavePreset: (preset: unknown) =>
+    ipcRenderer.invoke(IpcChannels.LotterySavePreset, cleanForIpc(preset)),
+  onLotteryStatus: (cb: (s: unknown) => void) => {
+    const handler = (_: IpcRendererEvent, s: unknown): void => cb(s)
+    ipcRenderer.on(IpcChannels.LotteryStatusUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.LotteryStatusUpdate, handler)
+  },
+
   // 日志
   logRecent: (limit?: number) => ipcRenderer.invoke(IpcChannels.LogRecent, limit),
   logClear: () => ipcRenderer.invoke(IpcChannels.LogClear),

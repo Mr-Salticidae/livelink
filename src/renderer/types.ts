@@ -74,6 +74,38 @@ export interface OverlayState {
   retrying: boolean
 }
 
+// 弹幕抽奖
+export interface LotteryConfig {
+  prize: string
+  keyword: string
+  winnerCount: number
+  durationSec: number
+  requireAnchorFansMedal: boolean
+  minFansMedalLevel: number
+}
+
+export interface LotteryWinner {
+  uid: string
+  uname: string
+}
+
+export type LotteryState =
+  | { phase: 'idle' }
+  | {
+      phase: 'running'
+      config: LotteryConfig
+      startedAt: number
+      endsAt: number
+      participantCount: number
+    }
+  | {
+      phase: 'done'
+      config: LotteryConfig
+      endedAt: number
+      participantCount: number
+      winners: LotteryWinner[]
+    }
+
 export interface BilibiliAuth {
   sessdata: string
   uid: string
@@ -116,6 +148,16 @@ export interface ApiSurface {
   onDanmuOverlayRoomStats: (
     cb: (stats: { watchedNum: number; watchedText: string }) => void
   ) => () => void
+
+  // 弹幕抽奖
+  lotteryStart: (config: LotteryConfig) => Promise<LotteryState>
+  lotteryCancel: () => Promise<LotteryState>
+  lotteryDrawNow: () => Promise<LotteryState>
+  lotteryReset: () => Promise<LotteryState>
+  lotteryStatus: () => Promise<LotteryState>
+  lotteryGetPreset: () => Promise<LotteryConfig>
+  lotterySavePreset: (preset: LotteryConfig) => Promise<LotteryConfig>
+  onLotteryStatus: (cb: (s: LotteryState) => void) => () => void
 
   ruleList: () => Promise<Rule[]>
   ruleUpsert: (rule: Rule) => Promise<Rule[]>

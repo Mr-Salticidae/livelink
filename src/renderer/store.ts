@@ -1,5 +1,14 @@
 import { ref, computed } from 'vue'
-import type { BilibiliAuth, ConnectionStatus, LogEntry, OverlayState, Rule, TTSConfig, VoiceOption } from './types'
+import type {
+  BilibiliAuth,
+  ConnectionStatus,
+  LogEntry,
+  LotteryState,
+  OverlayState,
+  Rule,
+  TTSConfig,
+  VoiceOption
+} from './types'
 
 export const status = ref<ConnectionStatus>({ state: 'idle' })
 export const room = ref<{ id: string }>({ id: '' })
@@ -14,8 +23,9 @@ export const rules = ref<Rule[]>([])
 export const logs = ref<LogEntry[]>([])
 export const danmuOverlayEnabled = ref<boolean>(false)
 export const danmuOverlayPinned = ref<boolean>(false)
+export const lotteryState = ref<LotteryState>({ phase: 'idle' })
 
-export type PageKey = 'home' | 'rules' | 'tts' | 'logs'
+export type PageKey = 'home' | 'rules' | 'tts' | 'lottery' | 'logs'
 export const currentPage = ref<PageKey>('home')
 
 export const enabledRuleCount = computed(() => rules.value.filter((r) => r.enabled).length)
@@ -89,6 +99,9 @@ export async function loadInitialData(): Promise<void> {
     danmuOverlayEnabled.value = s.enabled
     danmuOverlayPinned.value = s.pinned
   })
+
+  // 抽奖初始化
+  await initLottery()
 }
 
 export async function toggleDanmuOverlay(): Promise<void> {
@@ -109,6 +122,17 @@ export async function toggleDanmuOverlayPin(): Promise<void> {
   } catch (err) {
     console.error('danmuOverlayPinToggle failed', err)
   }
+}
+
+export async function initLottery(): Promise<void> {
+  try {
+    lotteryState.value = await window.api.lotteryStatus()
+  } catch (err) {
+    console.error('lotteryStatus failed', err)
+  }
+  window.api.onLotteryStatus((s) => {
+    lotteryState.value = s
+  })
 }
 
 function applyOverlayState(s: OverlayState): void {

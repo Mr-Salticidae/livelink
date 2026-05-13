@@ -9,6 +9,7 @@ import type { AppConfig, BilibiliAuth } from './config/store'
 import type { LogSink, LogEntry } from './actions/log'
 import type { Rule } from './rules/types'
 import type { DanmuOverlayWindow } from './danmu-overlay-window'
+import type { LotteryService, LotteryConfig } from './services/lottery'
 import { toFriendlyError } from './errors/friendly'
 
 export interface IpcDeps {
@@ -19,6 +20,7 @@ export interface IpcDeps {
   overlayServer: OverlayServer
   overlayController: OverlayController
   danmuOverlay: DanmuOverlayWindow
+  lottery: LotteryService
   config: AppConfig
   log: LogSink
   status: { current: ConnectionStatus }
@@ -32,6 +34,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     overlayServer,
     overlayController,
     danmuOverlay,
+    lottery,
     config,
     log,
     status
@@ -191,6 +194,40 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   // 把弹幕窗状态变化推到主窗口 UI（开关 toggle UI 状态）
   danmuOverlay.onStatusChange((s) => {
     deps.getMainWindow()?.webContents.send(IpcChannels.DanmuOverlayStatusUpdate, s)
+  })
+
+  // ─── 弹幕抽奖 ──────────────────────────────────────────────
+  ipcMain.handle(IpcChannels.LotteryStart, (_e, c: LotteryConfig) => {
+    const r = lottery.start(c)
+    if (!r.ok) throw new Error(r.error)
+    // 启动成功后，把这次配置存为下次默认 preset
+    config.setLotteryPreset(c)
+    return lottery.getState()
+  })
+  ipcMain.handle(IpcChannels.LotteryCancel, () => {
+    const r = lottery.cancel()
+    if (!r.ok) throw new Error(r.error)
+    return lottery.getState()
+  })
+  ipcMain.handle(IpcChannels.LotteryDrawNow, () => {
+    const r = lottery.drawNow()
+    if (!r.ok) throw new Error(r.error)
+    return lottery.getState()
+  })
+  ipcMain.handle(IpcChannels.LotteryReset, () => {
+    lottery.reset()
+    return lottery.getState()
+  })
+  ipcMain.handle(IpcChannels.LotteryStatus, () => lottery.getState())
+  ipcMain.handle(IpcChannels.LotteryGetPreset, () => config.getLotteryPreset())
+  ipcMain.handle(IpcChannels.LotterySavePreset, (_e, preset: LotteryConfig) => {
+    config.setLotteryPreset(preset)
+    return config.getLotteryPreset()
+  })
+
+  // 抽奖状态变化推到主窗口（参与人数 / 倒计时结束 / 结果出来）
+  lottery.onStatusChange((s) => {
+    deps.getMainWindow()?.webContents.send(IpcChannels.LotteryStatusUpdate, s)
   })
 
   // ─── 规则 ────────────────────────────────────────────────────
