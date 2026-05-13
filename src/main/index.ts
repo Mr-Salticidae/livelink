@@ -69,6 +69,16 @@ bus.on('event', (e) => {
   blindboxStore.record(roomId, e)
 })
 
+// SuperChat 横幅：系统级 broadcast 到 overlay（高价值留言不应该被用户误关掉，
+// 视觉横幅总显示；用户可改 super.chat.thanks.default 规则关掉 TTS）
+bus.on('event', (e) => {
+  if (e.kind !== 'super.chat') return
+  overlayBroadcaster.broadcast({
+    kind: 'super.chat.banner',
+    event: e
+  })
+})
+
 // OBS 弹幕信息板：系统级 overlay 推送（不走规则引擎，避免污染用户规则集）。
 // enabled=false 时不 broadcast，开关由 Home 页 toggle 控制
 bus.on('event', (e) => {

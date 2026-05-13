@@ -46,6 +46,21 @@ export const defaultRules: Rule[] = [
     ]
   },
   {
+    id: 'super.chat.thanks.default',
+    name: '默认 SC 感谢',
+    enabled: true,
+    trigger: 'super.chat',
+    match: { kind: 'always' },
+    cooldownSec: 0,
+    perUserCooldownSec: 0,
+    actions: [
+      { kind: 'log', template: { text: '{uname} SC ¥{price}：{message}' } },
+      { kind: 'tts', template: { text: '感谢{uname}的{price}元醒目留言' } }
+      // overlay 横幅由系统级 broadcast 推送（main/index.ts 直接发），
+      // 不在这里 overlay action，避免主播改规则时关掉横幅
+    ]
+  },
+  {
     id: 'blindbox.query.default',
     name: '盲盒盈亏查询',
     enabled: true,

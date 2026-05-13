@@ -8,6 +8,7 @@ import BlindboxCard from './components/BlindboxCard.vue'
 import LotteryCard from './components/LotteryCard.vue'
 import LotteryResultCard from './components/LotteryResultCard.vue'
 import DanmuBoard from './components/DanmuBoard.vue'
+import SuperChatBanner from './components/SuperChatBanner.vue'
 
 type BoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 interface BoardConfig {
@@ -72,6 +73,18 @@ interface LotteryResultState {
   participantCount: number
 }
 
+interface SuperChatItem {
+  id: string
+  uname: string
+  message: string
+  price: number
+  avatar?: string
+  durationSec: number
+  // 按价位决定 overlay 显示秒数：basic 15 / premium 25 / epic 40 / legendary 60
+  visibleMs: number
+  isLegendary: boolean
+}
+
 const MAX_ACTIVE_GIFTS = 3
 const GIFT_VISIBLE_MS = 4000
 const ENTER_VISIBLE_MS = 4500
@@ -84,6 +97,10 @@ const activeEnters = ref<EnterItem[]>([])
 const activeBlindboxCard = ref<BlindboxCardItem | null>(null)
 const activeLottery = ref<LotteryRunningState | null>(null)
 const activeLotteryResult = ref<LotteryResultState | null>(null)
+// SC：顶部排队（basic/premium/epic 最多 2 个同时显示），legendary 独占屏幕中央
+const topSuperChats = ref<SuperChatItem[]>([])
+const legendarySuperChat = ref<SuperChatItem | null>(null)
+const MAX_TOP_SC = 2
 
 // OBS 弹幕信息板：默认关闭，主进程通过 danmu.board.config 推送配置
 const danmuBoardConfig = ref<BoardConfig>({
@@ -223,6 +240,41 @@ onMounted(() => {
     activeLottery.value = null
   })
 
+  // SuperChat 横幅：系统级 broadcast，不依赖规则引擎。按价位放顶部 / 中央
+  on<OverlayPayload>('super.chat.banner', (msg) => {
+    const ev = msg.event
+    const p = ev.payload as { message?: string; price?: number; durationSec?: number }
+    const price = typeof p?.price === 'number' ? p.price : 0
+    const isLegendary = price >= 1000
+    const visibleMs =
+      price >= 1000 ? 60_000 : price >= 500 ? 40_000 : price >= 100 ? 25_000 : 15_000
+
+    const item: SuperChatItem = {
+      id: uid(),
+      uname: ev.user?.uname ?? '观众',
+      message: p?.message ?? '',
+      price,
+      avatar: (ev.user as { avatar?: string })?.avatar,
+      durationSec: typeof p?.durationSec === 'number' ? p.durationSec : 0,
+      visibleMs,
+      isLegendary
+    }
+
+    if (isLegendary) {
+      // legendary 独占屏幕中央，新一张顶替旧的（罕见，价位 ≥1000 一般不连续）
+      legendarySuperChat.value = item
+      window.setTimeout(() => {
+        if (legendarySuperChat.value?.id === item.id) legendarySuperChat.value = null
+      }, item.visibleMs)
+    } else {
+      topSuperChats.value.push(item)
+      if (topSuperChats.value.length > MAX_TOP_SC) topSuperChats.value.shift()
+      window.setTimeout(() => {
+        topSuperChats.value = topSuperChats.value.filter((s) => s.id !== item.id)
+      }, item.visibleMs)
+    }
+  })
+
   // OBS 弹幕信息板配置推送（启动 / Home 页改配置时 push）
   on<OverlayPayload>('danmu.board.config', (msg) => {
     const x = msg.extra as Partial<BoardConfig> | undefined
@@ -329,6 +381,34 @@ onMounted(() => {
         ref="danmuBoardRef"
         :max-lines="danmuBoardConfig.maxLines"
         :font-size="danmuBoardConfig.fontSize"
+      />
+    </div>
+
+    <!-- SuperChat 顶部横幅区（< 1000 元都在这） -->
+    <div class="absolute left-1/2 top-20 -translate-x-1/2 flex flex-col items-center gap-3">
+      <SuperChatBanner
+        v-for="sc in topSuperChats"
+        :key="sc.id"
+        :uname="sc.uname"
+        :message="sc.message"
+        :price="sc.price"
+        :avatar="sc.avatar"
+        :duration-sec="sc.durationSec"
+      />
+    </div>
+
+    <!-- SuperChat legendary（≥ 1000）独占屏幕中央 -->
+    <div
+      v-if="legendarySuperChat"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+    >
+      <SuperChatBanner
+        :key="legendarySuperChat.id"
+        :uname="legendarySuperChat.uname"
+        :message="legendarySuperChat.message"
+        :price="legendarySuperChat.price"
+        :avatar="legendarySuperChat.avatar"
+        :duration-sec="legendarySuperChat.durationSec"
       />
     </div>
   </div>
