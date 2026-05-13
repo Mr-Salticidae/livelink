@@ -41,7 +41,8 @@ const api = {
   getTts: () => ipcRenderer.invoke(IpcChannels.ConfigGetTts),
   patchTts: (patch: Record<string, unknown>) =>
     ipcRenderer.invoke(IpcChannels.ConfigPatchTts, cleanForIpc(patch)),
-  ttsTest: (text?: string) => ipcRenderer.invoke(IpcChannels.TtsTest, text),
+  ttsTest: (text?: string, voice?: string) =>
+    ipcRenderer.invoke(IpcChannels.TtsTest, voice ? { text, voice } : text),
   ttsVoiceList: () => ipcRenderer.invoke(IpcChannels.TtsVoiceList),
 
   // Overlay

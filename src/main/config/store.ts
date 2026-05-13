@@ -133,7 +133,12 @@ export class AppConfig {
 
   // tts
   getTts(): TTSConfig {
-    return this.store.get('tts')
+    // 兼容老配置：旧版本无 perEventVoice 字段
+    const stored = this.store.get('tts')
+    if (!stored.perEventVoice) {
+      stored.perEventVoice = {}
+    }
+    return stored
   }
   setTts(tts: TTSConfig): void {
     this.store.set('tts', tts)

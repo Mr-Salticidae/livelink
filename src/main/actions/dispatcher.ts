@@ -54,7 +54,8 @@ export class ActionDispatcher {
 
     if (spec.kind === 'tts') {
       const text = spec.template ? renderTemplate(spec.template.text, ctx) : ''
-      this.tts.enqueue(text)
+      // 传 eventKind 让 ttsPlayer 按事件类型查 perEventVoice 覆盖（多角色音色）
+      this.tts.enqueue(text, { eventKind: event.kind })
       return
     }
 

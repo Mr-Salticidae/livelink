@@ -264,15 +264,21 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   })
 
   // ─── TTS ────────────────────────────────────────────────────
-  ipcMain.handle(IpcChannels.TtsTest, async (_e, text?: string) => {
-    try {
-      await ttsPlayer.test(text)
-      return { ok: true }
-    } catch (err) {
-      const friendly = toFriendlyError(err)
-      throw new Error(friendly.message)
+  ipcMain.handle(
+    IpcChannels.TtsTest,
+    async (_e, payload?: string | { text?: string; voice?: string }) => {
+      // 兼容老调用：传 string 当 text 用；传对象可同时指定 voice 预听
+      const text = typeof payload === 'string' ? payload : payload?.text
+      const voice = typeof payload === 'object' ? payload?.voice : undefined
+      try {
+        await ttsPlayer.test(text, voice)
+        return { ok: true }
+      } catch (err) {
+        const friendly = toFriendlyError(err)
+        throw new Error(friendly.message)
+      }
     }
-  })
+  )
   ipcMain.handle(IpcChannels.TtsVoiceList, () => VOICE_OPTIONS)
 
   // ─── 日志 ────────────────────────────────────────────────────

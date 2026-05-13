@@ -51,6 +51,8 @@ export interface TTSConfig {
   voice: string
   rate: string
   volume: string
+  // 分事件音色覆盖（key 是 EventKind，value 是 voice）
+  perEventVoice?: Partial<Record<EventKind, string>>
 }
 
 export interface VoiceOption {
@@ -136,7 +138,7 @@ export interface ApiSurface {
 
   getTts: () => Promise<TTSConfig>
   patchTts: (patch: Partial<TTSConfig>) => Promise<TTSConfig>
-  ttsTest: (text?: string) => Promise<{ ok: boolean }>
+  ttsTest: (text?: string, voice?: string) => Promise<{ ok: boolean }>
   ttsVoiceList: () => Promise<VoiceOption[]>
 
   getOverlayPort: () => Promise<number>

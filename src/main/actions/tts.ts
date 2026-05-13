@@ -1,18 +1,23 @@
 import { BrowserWindow } from 'electron'
 import { Communicate } from 'edge-tts-universal'
+import type { EventKind } from '../platform/adapter'
 
 export interface TTSConfig {
   enabled: boolean
   voice: string
   rate: string // edge-tts 风格：'+0%' / '-20%'
   volume: string // edge-tts 风格：'+0%' / '-20%'
+  // 分事件音色覆盖。key 是 EventKind，value 是 voice 字符串。
+  // 空 / undefined / 空字符串 → 用全局 voice。rate/volume 不分事件（共用全局）
+  perEventVoice?: Partial<Record<EventKind, string>>
 }
 
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
   enabled: true,
   voice: 'zh-CN-XiaoxiaoNeural',
   rate: '+0%',
-  volume: '+0%'
+  volume: '+0%',
+  perEventVoice: {}
 }
 
 export const VOICE_OPTIONS: { value: string; label: string }[] = [
@@ -31,7 +36,15 @@ const SYNTHESIS_TIMEOUT_MS = 10_000
 
 interface QueueItem {
   text: string
+  voice: string // resolve 后的 voice（已经按 eventKind 查过 perEventVoice）
   enqueuedAt: number
+}
+
+export interface EnqueueOptions {
+  /** 事件类型，TTSPlayer 用来查 perEventVoice 覆盖 */
+  eventKind?: EventKind
+  /** 直接覆盖 voice（test 等场景用）。优先级高于 eventKind 查询 */
+  voiceOverride?: string
 }
 
 export class TTSPlayer {
@@ -63,21 +76,32 @@ export class TTSPlayer {
     return { ...this.config }
   }
 
-  enqueue(rawText: string): void {
+  enqueue(rawText: string, options?: EnqueueOptions): void {
     if (!this.config.enabled) return
     const text = (rawText ?? '').trim()
     if (!text) return
     const truncated = text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) : text
+    const voice = this.resolveVoice(options)
 
     if (this.queue.length >= MAX_QUEUE_LENGTH) {
       this.queue.shift() // 队列满了丢最早的，避免高频礼物时 TTS 滞后越来越远
     }
-    this.queue.push({ text: truncated, enqueuedAt: Date.now() })
+    this.queue.push({ text: truncated, voice, enqueuedAt: Date.now() })
     void this.drain()
   }
 
-  async test(text: string = '你好，我是 LiveLink，弹幕助手'): Promise<void> {
-    await this.speak(text)
+  async test(text: string = '你好，我是 LiveLink，弹幕助手', voiceOverride?: string): Promise<void> {
+    await this.speak(text, this.resolveVoice({ voiceOverride }))
+  }
+
+  /** 按 options 解析 voice：voiceOverride > perEventVoice[eventKind] > 全局 voice */
+  private resolveVoice(options?: EnqueueOptions): string {
+    if (options?.voiceOverride && options.voiceOverride.length > 0) return options.voiceOverride
+    if (options?.eventKind) {
+      const perEvent = this.config.perEventVoice?.[options.eventKind]
+      if (perEvent && perEvent.length > 0) return perEvent
+    }
+    return this.config.voice
   }
 
   dispose(): void {
@@ -96,7 +120,7 @@ export class TTSPlayer {
       while (this.queue.length > 0) {
         const item = this.queue.shift()!
         try {
-          await this.speak(item.text)
+          await this.speak(item.text, item.voice)
         } catch (err) {
           console.error('[TTSPlayer] speak failed', err)
         }
@@ -106,8 +130,8 @@ export class TTSPlayer {
     }
   }
 
-  private async speak(text: string): Promise<void> {
-    const audio = await this.synthesize(text)
+  private async speak(text: string, voice: string): Promise<void> {
+    const audio = await this.synthesize(text, voice)
     if (!audio || audio.length === 0) {
       console.warn('[TTSPlayer] empty synthesis result for:', text)
       return
@@ -133,9 +157,9 @@ export class TTSPlayer {
     }
   }
 
-  private async synthesize(text: string): Promise<Buffer> {
+  private async synthesize(text: string, voice: string): Promise<Buffer> {
     const c = new Communicate(text, {
-      voice: this.config.voice,
+      voice,
       rate: this.config.rate,
       volume: this.config.volume,
       connectionTimeout: SYNTHESIS_TIMEOUT_MS
