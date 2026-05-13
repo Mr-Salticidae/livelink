@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LiveLink 弹幕悬浮窗</title>
     <style>
-      html, body { margin: 0; padding: 0; height: 100%; background: transparent; overflow: hidden; }
+      /* 0.4.2: 不再用 transparent BrowserWindow（layered window 在全屏游戏 z-order 不稳）。
+         body 背景跟 .danmu-window 一致的深色实色，整体看上去仍是"悬浮深色小窗"，
+         只是窗外不再"穿透看到游戏背景"。要看游戏画面就把窗口拖小或拖到边角 */
+      html, body { margin: 0; padding: 0; height: 100%; background: #0f172a; overflow: hidden; }
       body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     </style>
   </head>

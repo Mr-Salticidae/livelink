@@ -57,6 +57,17 @@ export class DanmuOverlayWindow {
     const saved = this.config.getDanmuOverlay()
     const bounds = this.resolveBounds(saved)
 
+    // 0.4.2 激进调整：
+    // - 关掉 transparent —— Windows 上 transparent 窗口是 WS_EX_LAYERED，
+    //   layered window 在某些全屏游戏 + 显卡驱动下 z-order 不稳定，反而被遮住。
+    //   改 frameless + CSS 控制半透明背景色，等价视觉但 z-order 更可靠
+    // - type: 'toolbar' —— Windows 上设 WS_EX_TOOLWINDOW，工具栏窗口在 topmost
+    //   行为上比 normal 更激进，更稳定盖在前台
+    // - setAlwaysOnTop level=screen-saver + relativeLevel=1 推到层级顶
+    // 注意：D3D 独占全屏（exclusive fullscreen）游戏拿显卡独占控制权，
+    // Windows 层级再高的 topmost 窗口也覆盖不了 —— 这是底层物理限制，
+    // Discord/Steam overlay 靠 D3D hook 注入实现，本应用不做。用户须把游戏
+    // 设到"无边框窗口" / "窗口化全屏"模式
     this.win = new BrowserWindow({
       x: bounds.x,
       y: bounds.y,
@@ -65,14 +76,14 @@ export class DanmuOverlayWindow {
       minWidth: MIN_WIDTH,
       minHeight: MIN_HEIGHT,
       frame: false,
-      transparent: true,
+      transparent: false,
+      backgroundColor: '#00000000', // 视觉上仍透明，但不走 layered window 路径
       alwaysOnTop: true,
       resizable: true,
       skipTaskbar: true,
       show: false,
       hasShadow: false,
-      // 'screen-saver' 比 'normal' 层级更高，能盖过游戏全屏（部分独占全屏游戏除外）
-      // Windows 上 alwaysOnTop+screen-saver 是覆盖大多数全屏游戏的最稳组合
+      type: 'toolbar',
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -80,7 +91,8 @@ export class DanmuOverlayWindow {
         nodeIntegration: false
       }
     })
-    this.win.setAlwaysOnTop(true, 'screen-saver')
+    // screen-saver 是 Windows 最高级别 topmost；relativeLevel=1 让它进一步往上推
+    this.win.setAlwaysOnTop(true, 'screen-saver', 1)
     this.win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
     this.win.once('ready-to-show', () => this.win?.show())
