@@ -20,15 +20,24 @@ export const DEFAULT_TTS_CONFIG: TTSConfig = {
   perEventVoice: {}
 }
 
+// 2026-05-13：实测 listVoices() 拉真实可用的 zh-CN 列表，删除已下线的
+// 晓梦 / 晓双 / 晓萱（在 Azure 上有但 Edge TTS 端点不支持，会抛
+// NoAudioReceived "No audio was received."）。
+// 当前列表对照 Microsoft Edge TTS 服务实际返回，每个都已实测可用
 export const VOICE_OPTIONS: { value: string; label: string }[] = [
   { value: 'zh-CN-XiaoxiaoNeural', label: '晓晓 · 女 · 标准' },
-  { value: 'zh-CN-YunxiNeural', label: '云希 · 男 · 年轻' },
-  { value: 'zh-CN-XiaoyiNeural', label: '晓伊 · 女 · 温柔' },
-  { value: 'zh-CN-YunjianNeural', label: '云健 · 男 · 沉稳' },
-  { value: 'zh-CN-XiaomengNeural', label: '晓梦 · 女 · 可爱' },
-  { value: 'zh-CN-XiaoxuanNeural', label: '晓萱 · 女 · 沉稳' },
-  { value: 'zh-CN-XiaoshuangNeural', label: '晓双 · 童声' }
+  { value: 'zh-CN-XiaoyiNeural', label: '晓伊 · 女 · 活泼' },
+  { value: 'zh-CN-YunxiNeural', label: '云希 · 男 · 阳光' },
+  { value: 'zh-CN-YunxiaNeural', label: '云夏 · 男 · 可爱' },
+  { value: 'zh-CN-YunjianNeural', label: '云健 · 男 · 激情' },
+  { value: 'zh-CN-YunyangNeural', label: '云扬 · 男 · 沉稳（主播感）' },
+  { value: 'zh-CN-liaoning-XiaobeiNeural', label: '晓北 · 女 · 东北话' },
+  { value: 'zh-CN-shaanxi-XiaoniNeural', label: '晓妮 · 女 · 陕西话' }
 ]
+
+export const VALID_VOICE_VALUES: ReadonlySet<string> = new Set(
+  VOICE_OPTIONS.map((v) => v.value)
+)
 
 const MAX_TEXT_LENGTH = 50
 const MAX_QUEUE_LENGTH = 20

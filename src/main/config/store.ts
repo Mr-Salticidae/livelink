@@ -2,7 +2,7 @@ import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import { defaultRules } from '../rules/defaults'
 import type { Rule } from '../rules/types'
-import { DEFAULT_TTS_CONFIG, type TTSConfig } from '../actions/tts'
+import { DEFAULT_TTS_CONFIG, VALID_VOICE_VALUES, type TTSConfig } from '../actions/tts'
 
 // B 站登录态。SESSDATA 是 cookie，2023 年 7 月起 B 站对游客限制 DANMU_MSG 推送，需要登录态。
 // 仅本地存储，不上传。sessdata 用 Electron safeStorage 加密（Win 上走 DPAPI，与当前用户账号绑定），
@@ -135,9 +135,29 @@ export class AppConfig {
   getTts(): TTSConfig {
     // 兼容老配置：旧版本无 perEventVoice 字段
     const stored = this.store.get('tts')
+    let dirty = false
     if (!stored.perEventVoice) {
       stored.perEventVoice = {}
+      dirty = true
     }
+    // 校验 voice：老配置可能存了 0.5.3 之前的无效 voice (晓梦 / 晓双 / 晓萱)，
+    // 这些 voice 现在会抛 NoAudioReceived "No audio was received."。无效回退到默认晓晓
+    if (!VALID_VOICE_VALUES.has(stored.voice)) {
+      console.warn(`[AppConfig] tts.voice "${stored.voice}" 已下线，回退到默认晓晓`)
+      stored.voice = DEFAULT_TTS_CONFIG.voice
+      dirty = true
+    }
+    // perEventVoice 里的无效 voice 直接删除（让该事件回退到全局）
+    for (const k of Object.keys(stored.perEventVoice)) {
+      const v = stored.perEventVoice[k as keyof typeof stored.perEventVoice]
+      if (v && !VALID_VOICE_VALUES.has(v)) {
+        console.warn(`[AppConfig] tts.perEventVoice.${k} "${v}" 已下线，清除`)
+        delete stored.perEventVoice[k as keyof typeof stored.perEventVoice]
+        dirty = true
+      }
+    }
+    // 校正过的配置回写一次，下次启动不再 warn
+    if (dirty) this.store.set('tts', stored)
     return stored
   }
   setTts(tts: TTSConfig): void {
