@@ -4,22 +4,30 @@ import { renderTemplate } from '../rules/template'
 import type { TTSPlayer } from './tts'
 import type { OverlayBroadcaster } from './overlay'
 import type { LogSink } from './log'
+import type { BlindboxStore } from '../services/blindbox-store'
 
 export interface DispatcherDeps {
   tts: TTSPlayer
   overlay: OverlayBroadcaster
   log: LogSink
+  blindboxStore: BlindboxStore
+  // 当前连接的房间号 getter（adapter.currentRoomId）
+  getCurrentRoomId: () => number | null
 }
 
 export class ActionDispatcher {
   private tts: TTSPlayer
   private overlay: OverlayBroadcaster
   private log: LogSink
+  private blindboxStore: BlindboxStore
+  private getCurrentRoomId: () => number | null
 
   constructor(deps: DispatcherDeps) {
     this.tts = deps.tts
     this.overlay = deps.overlay
     this.log = deps.log
+    this.blindboxStore = deps.blindboxStore
+    this.getCurrentRoomId = deps.getCurrentRoomId
   }
 
   async dispatch(rule: Rule, event: StandardEvent, ctx: Record<string, string>): Promise<void> {
@@ -65,6 +73,21 @@ export class ActionDispatcher {
         text,
         event,
         extra: renderedExtra
+      })
+      return
+    }
+
+    // 盲盒盈亏查询：触发者通常是发"查盲盒"弹幕的观众
+    // 查 blindbox-store 里该 uid 在当前房间的累计记录，没有就静默；有就推 overlay 卡片
+    if (spec.kind === 'query_blindbox') {
+      const roomId = this.getCurrentRoomId()
+      if (roomId == null) return
+      const record = this.blindboxStore.get(roomId, event.user.uid)
+      if (!record) return
+      this.overlay.broadcast({
+        kind: 'blindbox.card',
+        event,
+        extra: { record }
       })
       return
     }

@@ -9,7 +9,8 @@ const TRIGGER_GROUPS: { kind: EventKind; label: string }[] = [
   { kind: 'gift.received', label: '礼物感谢' },
   { kind: 'guard.bought', label: '上舰感谢' },
   { kind: 'super.chat', label: 'SuperChat' },
-  { kind: 'follow.received', label: '关注感谢' }
+  { kind: 'follow.received', label: '关注感谢' },
+  { kind: 'blindbox.opened', label: '盲盒开盒' }
 ]
 
 const grouped = computed(() => {
@@ -80,6 +81,7 @@ function actionLabel(kind: string): string {
   if (kind === 'tts') return 'TTS'
   if (kind === 'overlay') return 'Overlay'
   if (kind === 'log') return '日志'
+  if (kind === 'query_blindbox') return '盲盒查询'
   return kind
 }
 

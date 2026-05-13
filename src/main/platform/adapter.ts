@@ -8,6 +8,7 @@ export type EventKind =
   | 'follow.received'
   | 'guard.bought'
   | 'super.chat'
+  | 'blindbox.opened'
 
 export interface UserInfo {
   uid: string
@@ -57,6 +58,32 @@ export interface SuperChatPayload {
   durationSec: number
 }
 
+// 盲盒事件。blive-message-listener 0.5.x 的 GiftMsg 不暴露 blind_gift 字段，
+// 实际从 raw.msg 监听 SEND_GIFT 且 m.data.blind_gift 非空里解析。
+//
+// B 站协议层（实测 + 社区资料）SEND_GIFT.blind_gift 关键字段：
+//   original_gift_id   开的是哪种盲盒（如"心动盲盒"对应固定 id）
+//   original_gift_name 盲盒中文名
+//   original_gift_price 盲盒原价（×1000，即每次开盒花费的电池数 / 千分位）
+//   gift_action        "投喂" 等
+//   gift_tip_price     提示价格（少见，可能不存在）
+// SEND_GIFT 主体字段（不在 blind_gift 内）：
+//   gift_id            实际中奖的礼物 id
+//   gift_name          中奖礼物名
+//   price              中奖礼物单价（×1000）
+//   num                中奖数量（盲盒一般一发一次，但小心心连击例外）
+// 注意：blind_gift 在 B 站不同时期字段名有过微调，代码里做 fallback 容错读取。
+export interface BlindBoxPayload {
+  blindBoxId: number // original_gift_id；偶有缺失记 0
+  blindBoxName: string // original_gift_name
+  costPerBox: number // 单次开盒花费（RMB，已 / 1000）
+  rewardGiftId: number // 中奖礼物 id
+  rewardGiftName: string
+  rewardPricePerItem: number // 中奖礼物单价（RMB，已 / 1000）
+  rewardNum: number
+  netGainPerBox: number // 净盈亏 = reward 总价 - cost（RMB）
+}
+
 export type StandardEvent =
   | { kind: 'viewer.enter'; platform: string; timestamp: number; user: UserInfo; payload: ViewerEnterPayload }
   | { kind: 'danmu.received'; platform: string; timestamp: number; user: UserInfo; payload: DanmuPayload }
@@ -64,6 +91,7 @@ export type StandardEvent =
   | { kind: 'follow.received'; platform: string; timestamp: number; user: UserInfo; payload: FollowPayload }
   | { kind: 'guard.bought'; platform: string; timestamp: number; user: UserInfo; payload: GuardBuyPayload }
   | { kind: 'super.chat'; platform: string; timestamp: number; user: UserInfo; payload: SuperChatPayload }
+  | { kind: 'blindbox.opened'; platform: string; timestamp: number; user: UserInfo; payload: BlindBoxPayload }
 
 export type EventListener = (e: StandardEvent) => void
 

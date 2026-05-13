@@ -12,6 +12,7 @@ import { LogSink } from './actions/log'
 import { OverlayServer } from './overlay-server/server'
 import { OverlayController } from './overlay-controller'
 import { GiftService } from './services/gift-config'
+import { BlindboxStore } from './services/blindbox-store'
 import { AppConfig } from './config/store'
 import { registerIpcHandlers } from './ipc'
 import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
@@ -38,7 +39,14 @@ const overlayController = new OverlayController(
 )
 
 const adapter = new BilibiliAdapter()
-const dispatcher = new ActionDispatcher({ tts: ttsPlayer, overlay: overlayBroadcaster, log })
+const blindboxStore = new BlindboxStore()
+const dispatcher = new ActionDispatcher({
+  tts: ttsPlayer,
+  overlay: overlayBroadcaster,
+  log,
+  blindboxStore,
+  getCurrentRoomId: () => adapter.currentRoomId
+})
 const engine = new RuleEngine({ bus, dispatcher })
 
 // adapter → bus → engine → dispatcher → (tts / overlay / log)
@@ -49,6 +57,13 @@ engine.setRules(config.getRules())
 // 原始事件无条件写日志（不经规则）。让 Logs 页反映直播间实际发生的所有事，
 // 不再只显示规则命中的。规则命中的 LogAction 还会在此之上叠加额外的日志。
 bus.on('event', (e) => log.writeRawEvent(e))
+// 盲盒开盒事件持久化到 blindbox-store（按 room 隔离）
+bus.on('event', (e) => {
+  if (e.kind !== 'blindbox.opened') return
+  const roomId = adapter.currentRoomId
+  if (roomId == null) return
+  blindboxStore.record(roomId, e)
+})
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({

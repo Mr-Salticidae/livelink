@@ -98,6 +98,13 @@ function formatRawEventText(e: StandardEvent): string {
     }
     case 'super.chat':
       return `${uname} SC (¥${e.payload.price}): ${e.payload.message}`
+    case 'blindbox.opened': {
+      const gainStr =
+        e.payload.netGainPerBox >= 0
+          ? `+¥${e.payload.netGainPerBox.toFixed(2)}`
+          : `-¥${Math.abs(e.payload.netGainPerBox).toFixed(2)}`
+      return `${uname} 开 ${e.payload.blindBoxName} → ${e.payload.rewardGiftName} ×${e.payload.rewardNum} (${gainStr})`
+    }
     default:
       return uname
   }

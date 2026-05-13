@@ -35,6 +35,16 @@ export function buildTemplateContext(e: StandardEvent): Record<string, string> {
         price: String(e.payload.price),
         guardLevel: String(e.payload.guardLevel)
       }
+    case 'blindbox.opened':
+      return {
+        ...base,
+        blindBoxName: e.payload.blindBoxName,
+        rewardName: e.payload.rewardGiftName,
+        cost: String(e.payload.costPerBox.toFixed(2)),
+        reward: String((e.payload.rewardPricePerItem * e.payload.rewardNum).toFixed(2)),
+        gain: String(e.payload.netGainPerBox.toFixed(2)),
+        num: String(e.payload.rewardNum)
+      }
     case 'viewer.enter':
     case 'follow.received':
     default:

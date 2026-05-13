@@ -44,5 +44,19 @@ export const defaultRules: Rule[] = [
       { kind: 'tts', template: { text: '感谢{uname}送出的{giftName}{num}个' } },
       { kind: 'overlay', overlayPayload: { kind: 'gift.received' } } // dispatcher 会把事件原始字段也带上
     ]
+  },
+  {
+    id: 'blindbox.query.default',
+    name: '盲盒盈亏查询',
+    enabled: true,
+    trigger: 'danmu.received',
+    match: { kind: 'keyword', keywords: ['查盲盒', '查盈亏', '我的盲盒'], mode: 'any' },
+    cooldownSec: 5,
+    perUserCooldownSec: 30,
+    actions: [
+      { kind: 'log', template: { text: '{uname} 查询盲盒记录' } },
+      // query_blindbox 自己从 blindbox-store 读，没有则静默；有就推 overlay 卡片
+      { kind: 'query_blindbox' }
+    ]
   }
 ]

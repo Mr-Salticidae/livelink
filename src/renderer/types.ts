@@ -15,8 +15,9 @@ export type EventKind =
   | 'follow.received'
   | 'guard.bought'
   | 'super.chat'
+  | 'blindbox.opened'
 
-export type ActionKind = 'tts' | 'overlay' | 'log'
+export type ActionKind = 'tts' | 'overlay' | 'log' | 'query_blindbox'
 
 export interface RuleTemplate {
   text: string

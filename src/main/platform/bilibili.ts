@@ -261,11 +261,18 @@ export class BilibiliAdapter implements PlatformAdapter {
 
       // 诊断：所有原始 cmd 计入直方图。SESSDATA 填了仍收不到弹幕时，看主进程 console
       // 的 30s 直方图就能判断 B 站到底推了什么 cmd（DANMU_MSG 是否在列）
+      //
+      // 同时这里也是盲盒事件解析点：blive-message-listener 0.5.x 的 GiftMsg
+      // 不暴露 blind_gift 字段，要自己看 SEND_GIFT.data.blind_gift 非空时发 blindbox.opened
       raw: {
-        msg: (m: { cmd?: string }) => {
+        msg: (m: { cmd?: string; data?: unknown }) => {
           const cmd = m?.cmd ?? 'unknown'
           this.cmdHistogram.set(cmd, (this.cmdHistogram.get(cmd) ?? 0) + 1)
           this.scheduleHistogramFlush()
+
+          if (cmd === 'SEND_GIFT') {
+            this.tryEmitBlindBox(m.data, roomId)
+          }
         }
       }
     }
@@ -297,6 +304,73 @@ export class BilibiliAdapter implements PlatformAdapter {
     // 跨 connect/disconnect 周期保持。清掉会导致再 connect 后事件 / 状态断流。
   }
 
+  // 从 SEND_GIFT.data 抽 blind_gift 信息。raw msg 没经过 lib 的字段归一化，
+  // 字段命名按 B 站协议 snake_case；blind_gift 在不同时期版本字段名有过微调
+  // （original_gift_* vs blind_gift_id 等），优先按文档伪代码命名，逐字段兜底
+  private tryEmitBlindBox(data: unknown, roomId: number): void {
+    if (!data || typeof data !== 'object') return
+    const d = data as Record<string, unknown>
+    const blind = d['blind_gift']
+    if (!blind || typeof blind !== 'object') return
+    const b = blind as Record<string, unknown>
+
+    const blindBoxId = num(b['original_gift_id']) ?? num(b['blind_gift_id']) ?? 0
+    const blindBoxName = str(b['original_gift_name']) ?? '盲盒'
+    const costRaw = num(b['original_gift_price']) ?? num(b['price']) ?? 0
+    const rewardGiftId = num(d['gift_id']) ?? 0
+    const rewardGiftName = str(d['gift_name']) ?? '未知礼物'
+    const rewardPriceRaw = num(d['price']) ?? 0
+    const rewardNum = num(d['num']) ?? num(d['amount']) ?? 1
+
+    // 价格 B 站统一 ×1000，除以 1000 还原成 RMB
+    const costPerBox = costRaw / 1000
+    const rewardPricePerItem = rewardPriceRaw / 1000
+    const netGainPerBox = rewardPricePerItem * rewardNum - costPerBox
+
+    // user 来自 SEND_GIFT.data 顶层字段，没有完整 badge 信息但 uid/uname 总是有
+    const uid = String(num(d['uid']) ?? 0)
+    const uname = str(d['uname']) ?? '观众'
+    const face = str(d['face']) ?? undefined
+    // medal_info 是 B 站协议里 SEND_GIFT 携带的礼物粉丝牌信息，用它构造 fansMedal
+    const medalInfo = d['medal_info']
+    const medal =
+      medalInfo && typeof medalInfo === 'object' ? (medalInfo as Record<string, unknown>) : null
+    const medalLevel = medal ? (num(medal['medal_level']) ?? 0) : 0
+    const medalName = medal ? (str(medal['medal_name']) ?? '') : ''
+    const medalAnchorRoom = medal ? (num(medal['anchor_roomid']) ?? 0) : 0
+    const medalLighted = medal ? Boolean(num(medal['is_lighted'])) : false
+
+    this.emit({
+      kind: 'blindbox.opened',
+      platform: 'bilibili',
+      timestamp: num(d['timestamp']) ? num(d['timestamp'])! * 1000 : Date.now(),
+      user: {
+        uid,
+        uname,
+        avatar: face,
+        guardLevel: num(d['guard_level']) ?? 0,
+        fansMedal: medal
+          ? {
+              level: medalLevel,
+              name: medalName,
+              isAnchor: medalAnchorRoom > 0 && medalAnchorRoom === roomId,
+              isLighted: medalLighted
+            }
+          : undefined
+      },
+      payload: {
+        blindBoxId,
+        blindBoxName,
+        costPerBox,
+        rewardGiftId,
+        rewardGiftName,
+        rewardPricePerItem,
+        rewardNum,
+        netGainPerBox
+      }
+    })
+  }
+
   private scheduleHistogramFlush(): void {
     if (this.histogramFlushTimer) return
     this.histogramFlushTimer = setTimeout(() => {
@@ -310,4 +384,15 @@ export class BilibiliAdapter implements PlatformAdapter {
       this.cmdHistogram.clear()
     }, CMD_HISTOGRAM_FLUSH_MS)
   }
+}
+
+// 从 unknown 容错读 number / string
+function num(v: unknown): number | undefined {
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v)
+  return undefined
+}
+function str(v: unknown): string | undefined {
+  if (typeof v === 'string') return v
+  return undefined
 }

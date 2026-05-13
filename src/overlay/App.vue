@@ -4,6 +4,7 @@ import { on } from './socket'
 import type { OverlayPayload } from './types'
 import GiftEffect from './components/GiftEffect.vue'
 import ViewerEnterBanner from './components/ViewerEnterBanner.vue'
+import BlindboxCard from './components/BlindboxCard.vue'
 
 interface GiftItem {
   id: string
@@ -20,13 +21,39 @@ interface EnterItem {
   text: string
 }
 
+interface BlindboxRecord {
+  uname: string
+  firstOpenAt: number
+  lastOpenAt: number
+  totalCost: number
+  totalReward: number
+  totalOpenCount: number
+  records: Array<{
+    ts: number
+    blindBoxName: string
+    cost: number
+    reward: number
+    gain: number
+    rewardName: string
+    rewardNum: number
+  }>
+}
+
+interface BlindboxCardItem {
+  id: string
+  uname: string
+  record: BlindboxRecord
+}
+
 const MAX_ACTIVE_GIFTS = 3
 const GIFT_VISIBLE_MS = 4000
 const ENTER_VISIBLE_MS = 4500
+const BLINDBOX_VISIBLE_MS = 7000
 
 const activeGifts = ref<GiftItem[]>([])
 const giftQueue = ref<GiftItem[]>([])
 const activeEnters = ref<EnterItem[]>([])
+const activeBlindboxCard = ref<BlindboxCardItem | null>(null)
 
 const uid = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -82,6 +109,22 @@ onMounted(() => {
     const text = msg.text || `欢迎 ${msg.event?.user?.uname ?? '新观众'}`
     pushEnter({ id: uid(), text })
   })
+
+  // 盲盒查询卡片：触发者通常是发"查盲盒"弹幕的人。同一时间只显示一张卡，
+  // 新卡顶替旧卡（避免多人同时查询时叠满屏）。
+  on<OverlayPayload>('blindbox.card', (msg) => {
+    const extra = msg.extra as { record?: BlindboxRecord } | undefined
+    if (!extra?.record) return
+    const item: BlindboxCardItem = {
+      id: uid(),
+      uname: msg.event?.user?.uname ?? '观众',
+      record: extra.record
+    }
+    activeBlindboxCard.value = item
+    window.setTimeout(() => {
+      if (activeBlindboxCard.value?.id === item.id) activeBlindboxCard.value = null
+    }, BLINDBOX_VISIBLE_MS)
+  })
 })
 </script>
 
@@ -103,6 +146,18 @@ onMounted(() => {
         :gift-id="g.giftId"
         :price="g.price"
         :coin-type="g.coinType"
+      />
+    </div>
+
+    <!-- 屏幕中央盲盒查询卡 -->
+    <div
+      v-if="activeBlindboxCard"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+    >
+      <BlindboxCard
+        :key="activeBlindboxCard.id"
+        :uname="activeBlindboxCard.uname"
+        :record="activeBlindboxCard.record"
       />
     </div>
   </div>
