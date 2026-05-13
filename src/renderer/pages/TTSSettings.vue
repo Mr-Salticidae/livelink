@@ -41,8 +41,11 @@ function formatPct(n: number): string {
 async function persist(): Promise<void> {
   saving.value = true
   error.value = null
+  // localConfig 是 ref()，.value 是 Vue reactive Proxy。preload 已经 cleanForIpc 兜底，
+  // 这里再深拷贝一层避免任何边缘情况 (Vue 版本差异 / preload 装载顺序问题等)
+  const payload = JSON.parse(JSON.stringify(localConfig.value))
   try {
-    const next = await window.api.patchTts(localConfig.value)
+    const next = await window.api.patchTts(payload)
     ttsConfig.value = next
   } catch (err) {
     error.value = (err as Error)?.message ?? '保存失败'
