@@ -16,7 +16,7 @@ import HorseRaceResultCard from './components/HorseRaceResultCard.vue'
 import IntroBanner from './components/IntroBanner.vue'
 import Celebration from './components/Celebration.vue'
 
-type BoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+interface BoardPosition { x: number; y: number }
 interface BoardConfig {
   enabled: boolean
   position: BoardPosition
@@ -184,21 +184,16 @@ function triggerCelebration(): void {
 // OBS 弹幕信息板：默认关闭，主进程通过 danmu.board.config 推送配置
 const danmuBoardConfig = ref<BoardConfig>({
   enabled: false,
-  position: 'bottom-left',
+  position: { x: 2, y: 76 },
   maxLines: 10,
   fontSize: 16,
   showGift: true
 })
 const danmuBoardRef = ref<InstanceType<typeof DanmuBoard> | null>(null)
+// 板子左上角的百分比定位。直接 left/top %，板子宽 360px，主播负责拖到不溢出位置
 const boardPosStyle = computed(() => {
-  const PAD = '24px'
-  switch (danmuBoardConfig.value.position) {
-    case 'top-left': return { top: PAD, left: PAD }
-    case 'top-right': return { top: PAD, right: PAD }
-    case 'bottom-right': return { bottom: PAD, right: PAD }
-    case 'bottom-left':
-    default: return { bottom: PAD, left: PAD }
-  }
+  const p = danmuBoardConfig.value.position
+  return { left: `${p.x}%`, top: `${p.y}%` }
 })
 
 const uid = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`

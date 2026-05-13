@@ -17,15 +17,45 @@ import {
   danmuBoard,
   patchDanmuBoard
 } from '../store'
-import type { DanmuBoardPosition } from '../types'
-
-const BOARD_POSITIONS: { value: DanmuBoardPosition; label: string }[] = [
-  { value: 'top-left', label: '左上' },
-  { value: 'top-right', label: '右上' },
-  { value: 'bottom-left', label: '左下' },
-  { value: 'bottom-right', label: '右下' }
-]
 import type { Rule } from '../types'
+
+// 弹幕信息板 4 角快捷预设（位置为板子左上角的百分比）
+const BOARD_PRESETS: { value: { x: number; y: number }; label: string }[] = [
+  { value: { x: 2, y: 2 }, label: '左上' },
+  { value: { x: 80, y: 2 }, label: '右上' },
+  { value: { x: 2, y: 76 }, label: '左下' },
+  { value: { x: 80, y: 76 }, label: '右下' }
+]
+
+// 预览框 16:9 比例的拖动逻辑。容器尺寸 onmounted 测量
+const previewRef = ref<HTMLDivElement | null>(null)
+const dragging = ref(false)
+function startDragBoard(e: MouseEvent): void {
+  if (!previewRef.value) return
+  dragging.value = true
+  e.preventDefault()
+  const update = (evt: MouseEvent): void => {
+    const rect = previewRef.value!.getBoundingClientRect()
+    // 鼠标点击位置作为板子左上角；x/y 百分比
+    const x = ((evt.clientX - rect.left) / rect.width) * 100
+    const y = ((evt.clientY - rect.top) / rect.height) * 100
+    const clampedX = Math.max(0, Math.min(82, x)) // 板子宽 18%，82 之后会溢出
+    const clampedY = Math.max(0, Math.min(82, y))
+    patchDanmuBoard({ position: { x: Math.round(clampedX), y: Math.round(clampedY) } })
+  }
+  update(e) // 点击位置立即跳到那里
+  const move = (evt: MouseEvent): void => {
+    if (!dragging.value) return
+    update(evt)
+  }
+  const up = (): void => {
+    dragging.value = false
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+}
 import BilibiliAuthAdvanced from '../components/BilibiliAuthAdvanced.vue'
 
 // Home 页快捷开关：直接读 / 写规则 store 里默认那三条
@@ -242,18 +272,46 @@ async function copyOverlayUrl(): Promise<void> {
       <!-- 详细配置：开启时才显示 -->
       <div v-if="danmuBoard.enabled" class="space-y-3 rounded-lg bg-slate-950/40 p-3">
         <div>
-          <label class="text-xs text-slate-400">位置</label>
-          <div class="mt-1 grid grid-cols-4 gap-1">
+          <label class="text-xs text-slate-400">
+            位置（拖动预览框里的方块到任意位置，或点 4 角快捷预设）
+          </label>
+          <!-- 16:9 拖动预览框 -->
+          <div
+            ref="previewRef"
+            class="mt-2 relative aspect-video w-full rounded-lg border border-slate-700 bg-gradient-to-br from-slate-800/60 to-slate-950 cursor-crosshair select-none overflow-hidden"
+            :class="dragging ? 'border-sky-400' : ''"
+            @mousedown="startDragBoard"
+          >
+            <!-- 屏幕中心十字辅助线 -->
+            <div class="absolute inset-0 pointer-events-none">
+              <div class="absolute left-1/2 top-0 bottom-0 border-l border-slate-700/40"></div>
+              <div class="absolute top-1/2 left-0 right-0 border-t border-slate-700/40"></div>
+            </div>
+            <!-- DanmuBoard 缩略图 -->
+            <div
+              class="absolute rounded bg-sky-500/30 border border-sky-400/80 shadow-lg pointer-events-none transition-all duration-100"
+              :style="{
+                left: danmuBoard.position.x + '%',
+                top: danmuBoard.position.y + '%',
+                width: '18%',
+                height: '22%'
+              }"
+            >
+              <div class="text-[8px] text-sky-100 text-center mt-0.5 font-medium">弹幕板</div>
+            </div>
+            <!-- 当前位置坐标 -->
+            <div class="absolute right-1.5 bottom-1.5 text-[9px] text-slate-400 font-mono bg-slate-950/60 px-1.5 rounded">
+              x: {{ danmuBoard.position.x }}% · y: {{ danmuBoard.position.y }}%
+            </div>
+          </div>
+
+          <!-- 4 角快捷预设 -->
+          <div class="mt-2 grid grid-cols-4 gap-1">
             <button
-              v-for="p in BOARD_POSITIONS"
-              :key="p.value"
+              v-for="p in BOARD_PRESETS"
+              :key="p.label"
               @click="patchDanmuBoard({ position: p.value })"
-              class="rounded border px-2 py-1 text-xs transition"
-              :class="
-                danmuBoard.position === p.value
-                  ? 'border-sky-500 bg-sky-500/15 text-sky-200'
-                  : 'border-slate-700 bg-slate-950 text-slate-400 hover:text-slate-200'
-              "
+              class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-600 transition"
             >{{ p.label }}</button>
           </div>
         </div>

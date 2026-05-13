@@ -43,13 +43,26 @@ export interface LotteryPreset {
 }
 
 // OBS 弹幕信息板（给观众看的直播屏 overlay，区别于主播自己看的弹幕悬浮窗）
-export type DanmuBoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+// position 用百分比表示板子左上角在 OBS 画面中的位置，{ x: 0, y: 0 } = 屏幕左上角
+// 0.7.0 起从枚举 4 角扩展为任意位置，让主播在 Home 页预览框里拖到任何位置
+export interface DanmuBoardPosition {
+  x: number // 0-100 (%)
+  y: number // 0-100 (%)
+}
 export interface DanmuBoardConfig {
   enabled: boolean
   position: DanmuBoardPosition
   maxLines: number // 同时显示条数上限 5-30
   fontSize: number // 字号 12-24 px
   showGift: boolean // 礼物事件是否也进面板（默认 true）
+}
+
+// 老配置 (0.6.x 之前) 是 4 角字符串，迁移到 { x, y } 百分比
+const LEGACY_POSITION_MAP: Record<string, DanmuBoardPosition> = {
+  'top-left': { x: 2, y: 2 },
+  'top-right': { x: 80, y: 2 },
+  'bottom-left': { x: 2, y: 76 },
+  'bottom-right': { x: 80, y: 76 }
 }
 
 // 弹幕悬浮窗（主播全屏游戏时瞟弹幕用）
@@ -85,7 +98,7 @@ const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
 
 const DEFAULT_DANMU_BOARD: DanmuBoardConfig = {
   enabled: false, // 默认关闭，避免新装用户直播屏意外多出弹幕板
-  position: 'bottom-left',
+  position: { x: 2, y: 76 }, // 左下区
   maxLines: 10,
   fontSize: 16,
   showGift: true
@@ -275,23 +288,49 @@ export class AppConfig {
 
   // OBS 弹幕信息板
   getDanmuBoard(): DanmuBoardConfig {
-    const stored = this.store.get('danmuBoard') as DanmuBoardConfig | undefined
-    if (!stored) return { ...DEFAULT_DANMU_BOARD }
+    const stored = this.store.get('danmuBoard') as
+      | (Omit<DanmuBoardConfig, 'position'> & { position: DanmuBoardPosition | string })
+      | undefined
+    if (!stored) return { ...DEFAULT_DANMU_BOARD, position: { ...DEFAULT_DANMU_BOARD.position } }
+
+    // 兼容老配置：position 是字符串（'top-left' 等）→ 迁移到 { x, y }
+    let position: DanmuBoardPosition
+    if (typeof stored.position === 'string') {
+      position =
+        LEGACY_POSITION_MAP[stored.position] ?? { ...DEFAULT_DANMU_BOARD.position }
+    } else if (stored.position && typeof stored.position === 'object') {
+      const p = stored.position
+      position = {
+        x: clampPercent(typeof p.x === 'number' ? p.x : DEFAULT_DANMU_BOARD.position.x),
+        y: clampPercent(typeof p.y === 'number' ? p.y : DEFAULT_DANMU_BOARD.position.y)
+      }
+    } else {
+      position = { ...DEFAULT_DANMU_BOARD.position }
+    }
+
     return {
       enabled: stored.enabled ?? DEFAULT_DANMU_BOARD.enabled,
-      position: stored.position ?? DEFAULT_DANMU_BOARD.position,
+      position,
       maxLines: typeof stored.maxLines === 'number' ? stored.maxLines : DEFAULT_DANMU_BOARD.maxLines,
       fontSize: typeof stored.fontSize === 'number' ? stored.fontSize : DEFAULT_DANMU_BOARD.fontSize,
       showGift: stored.showGift ?? DEFAULT_DANMU_BOARD.showGift
     }
   }
   setDanmuBoard(cfg: DanmuBoardConfig): void {
-    this.store.set('danmuBoard', cfg)
+    // 写入前 clamp position 防止溢出
+    const safe: DanmuBoardConfig = {
+      ...cfg,
+      position: {
+        x: clampPercent(cfg.position?.x ?? DEFAULT_DANMU_BOARD.position.x),
+        y: clampPercent(cfg.position?.y ?? DEFAULT_DANMU_BOARD.position.y)
+      }
+    }
+    this.store.set('danmuBoard', safe)
   }
   patchDanmuBoard(patch: Partial<DanmuBoardConfig>): DanmuBoardConfig {
     const next: DanmuBoardConfig = { ...this.getDanmuBoard(), ...patch }
     this.setDanmuBoard(next)
-    return next
+    return this.getDanmuBoard() // 返回 clamp 后的值
   }
 
   // 赛马 preset
@@ -391,4 +430,10 @@ function decryptSessdata(stored: string): string {
     }
   }
   return stored
+}
+
+// DanmuBoard position 百分比 clamp 到 [0, 100]
+function clampPercent(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(100, n))
 }

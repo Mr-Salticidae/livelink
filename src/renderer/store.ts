@@ -31,7 +31,7 @@ export const votingState = ref<VotingState>({ phase: 'idle' })
 export const horseRaceState = ref<HorseRaceState>({ phase: 'idle' })
 export const danmuBoard = ref<DanmuBoardConfig>({
   enabled: false,
-  position: 'bottom-left',
+  position: { x: 2, y: 76 },
   maxLines: 10,
   fontSize: 16,
   showGift: true

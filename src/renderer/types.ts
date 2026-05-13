@@ -77,7 +77,11 @@ export interface OverlayState {
 }
 
 // OBS 弹幕信息板
-export type DanmuBoardPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+// 0.7.0 起 position 从枚举 4 角改为任意 { x, y } 百分比
+export interface DanmuBoardPosition {
+  x: number // 0-100 (%)
+  y: number // 0-100 (%)
+}
 export interface DanmuBoardConfig {
   enabled: boolean
   position: DanmuBoardPosition
