@@ -79,7 +79,7 @@ onBeforeUnmount(() => {
     <!-- 标题栏：未钉住时可拖动；钉住后只剩图钉按钮可点 -->
     <header class="title-bar" :class="{ 'title-bar-pinned': pinned }">
       <span v-if="!pinned" class="title">LiveLink · 弹幕</span>
-      <span v-else class="title pinned-hint">已钉住 · 点 📍 解开</span>
+      <span v-else class="title pinned-hint">已钉住 · 鼠标穿透 · 到主窗口解开</span>
       <div class="title-buttons">
         <button
           class="pin-btn"

@@ -242,7 +242,8 @@ async function copyOverlayUrl(): Promise<void> {
             >已钉住</span>
           </div>
           <div class="text-xs text-slate-500">
-            钉住后：禁止拖动 / 缩放、点击不抢游戏焦点。游戏里乱动鼠标也不会把它拖走。再点解开。
+            钉住后：<strong class="text-amber-300">鼠标完全穿透弹幕窗</strong>（游戏正常操作不被劫持）+
+            禁止拖动 / 缩放、不抢游戏焦点。子窗按钮也被穿透，解开只能用<strong class="text-slate-300">这里</strong>的开关。
           </div>
         </div>
         <button

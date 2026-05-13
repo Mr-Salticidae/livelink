@@ -159,8 +159,11 @@ export class DanmuOverlayWindow {
     this.win.setResizable(!pinned)
     // setFocusable(false) → WS_EX_NOACTIVATE，点击窗口不抢焦点，避免游戏失焦
     this.win.setFocusable(!pinned)
-    // 钉住时再次强制 alwaysOnTop screen-saver 层级，已是最高
-    this.win.setAlwaysOnTop(true, 'screen-saver')
+    // 鼠标穿透：钉住后鼠标移到弹幕窗上不再被劫持，游戏正常接收 hover / click。
+    // 解钉只能通过主窗口 Home 页（已实现镜像开关）
+    this.win.setIgnoreMouseEvents(pinned)
+    // 钉住时再次强制 alwaysOnTop screen-saver 层级 + relativeLevel
+    this.win.setAlwaysOnTop(true, 'screen-saver', 1)
   }
 
   /** 给 IPC 用：返回 enabled + pinned 状态 */
