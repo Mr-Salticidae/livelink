@@ -30,6 +30,15 @@ export const IpcChannels = {
   OverlayRetry: 'overlay:retry',
   OverlayStatusUpdate: 'overlay:status-update',
 
+  // 弹幕悬浮窗（独立 BrowserWindow，给单屏主播全屏游戏时瞟弹幕用）
+  DanmuOverlayOpen: 'danmu-overlay:open',
+  DanmuOverlayClose: 'danmu-overlay:close',
+  DanmuOverlayToggle: 'danmu-overlay:toggle',
+  DanmuOverlayStatus: 'danmu-overlay:status',
+  DanmuOverlayStatusUpdate: 'danmu-overlay:status-update',
+  DanmuOverlayGetSettings: 'danmu-overlay:get-settings',
+  DanmuOverlayEvent: 'danmu-overlay:event', // 主→子窗 push 弹幕 / 礼物事件
+
   // 日志（主→渲染 push）
   LogAppend: 'log:append',
   LogRecent: 'log:recent',

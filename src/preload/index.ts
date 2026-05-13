@@ -55,6 +55,23 @@ const api = {
     return () => ipcRenderer.removeListener(IpcChannels.OverlayStatusUpdate, handler)
   },
 
+  // 弹幕悬浮窗（独立 BrowserWindow）
+  danmuOverlayOpen: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayOpen),
+  danmuOverlayClose: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayClose),
+  danmuOverlayToggle: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayToggle),
+  danmuOverlayStatus: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayStatus),
+  getDanmuOverlaySettings: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayGetSettings),
+  onDanmuOverlayStatus: (cb: (s: { enabled: boolean }) => void) => {
+    const handler = (_: IpcRendererEvent, s: { enabled: boolean }): void => cb(s)
+    ipcRenderer.on(IpcChannels.DanmuOverlayStatusUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.DanmuOverlayStatusUpdate, handler)
+  },
+  onDanmuOverlayEvent: (cb: (item: unknown) => void) => {
+    const handler = (_: IpcRendererEvent, item: unknown): void => cb(item)
+    ipcRenderer.on(IpcChannels.DanmuOverlayEvent, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.DanmuOverlayEvent, handler)
+  },
+
   // 规则
   ruleList: () => ipcRenderer.invoke(IpcChannels.RuleList),
   ruleUpsert: (rule: unknown) =>

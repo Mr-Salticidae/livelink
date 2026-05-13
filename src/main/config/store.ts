@@ -13,6 +13,14 @@ export interface BilibiliAuth {
   buvid: string // buvid3，可选
 }
 
+// 弹幕悬浮窗（主播全屏游戏时瞟弹幕用）
+export interface DanmuOverlayConfig {
+  enabled: boolean // 启动时是否自动打开（持久化记忆）
+  bounds: { x: number; y: number; width: number; height: number } | null
+  opacity: number // 背景不透明度 0-1
+  fontSize: number // 字号 px
+}
+
 export interface AppConfigSchema {
   room: { id: string }
   rules: Rule[]
@@ -20,6 +28,14 @@ export interface AppConfigSchema {
   overlay: { port: number }
   platform: { active: 'bilibili' }
   auth: { bilibili: BilibiliAuth }
+  danmuOverlay: DanmuOverlayConfig
+}
+
+const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
+  enabled: false,
+  bounds: null,
+  opacity: 0.85,
+  fontSize: 14
 }
 
 const defaults: AppConfigSchema = {
@@ -28,7 +44,8 @@ const defaults: AppConfigSchema = {
   tts: { ...DEFAULT_TTS_CONFIG },
   overlay: { port: 38501 },
   platform: { active: 'bilibili' },
-  auth: { bilibili: { sessdata: '', uid: '', buvid: '' } }
+  auth: { bilibili: { sessdata: '', uid: '', buvid: '' } },
+  danmuOverlay: { ...DEFAULT_DANMU_OVERLAY }
 }
 
 export class AppConfig {
@@ -114,6 +131,28 @@ export class AppConfig {
   patchBilibiliAuth(patch: Partial<BilibiliAuth>): BilibiliAuth {
     const next: BilibiliAuth = { ...this.getBilibiliAuth(), ...patch }
     this.setBilibiliAuth(next)
+    return next
+  }
+
+  // 弹幕悬浮窗
+  getDanmuOverlay(): DanmuOverlayConfig {
+    // electron-store 在老配置升级时 key 可能为 undefined，用 defaults 兜底
+    const stored = this.store.get('danmuOverlay') as DanmuOverlayConfig | undefined
+    if (!stored) return { ...DEFAULT_DANMU_OVERLAY }
+    return {
+      enabled: stored.enabled ?? false,
+      bounds: stored.bounds ?? null,
+      opacity: typeof stored.opacity === 'number' ? stored.opacity : DEFAULT_DANMU_OVERLAY.opacity,
+      fontSize:
+        typeof stored.fontSize === 'number' ? stored.fontSize : DEFAULT_DANMU_OVERLAY.fontSize
+    }
+  }
+  setDanmuOverlay(cfg: DanmuOverlayConfig): void {
+    this.store.set('danmuOverlay', cfg)
+  }
+  patchDanmuOverlay(patch: Partial<DanmuOverlayConfig>): DanmuOverlayConfig {
+    const next: DanmuOverlayConfig = { ...this.getDanmuOverlay(), ...patch }
+    this.setDanmuOverlay(next)
     return next
   }
 }

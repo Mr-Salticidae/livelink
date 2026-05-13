@@ -9,7 +9,9 @@ import {
   isConnected,
   isBusy,
   retryOverlay,
-  rules
+  rules,
+  danmuOverlayEnabled,
+  toggleDanmuOverlay
 } from '../store'
 import type { Rule } from '../types'
 import BilibiliAuthAdvanced from '../components/BilibiliAuthAdvanced.vue'
@@ -200,6 +202,29 @@ async function copyOverlayUrl(): Promise<void> {
         <li>2. 起个名字（比如"LiveLink Overlay"）→ 确定。</li>
         <li>3. 把上面这个 URL 粘贴到"URL"栏 → 宽度 1920、高度 1080 → 确定。直播间一有动静，特效就会出现。</li>
       </ol>
+    </section>
+
+    <!-- 弹幕悬浮窗：单屏主播全屏游戏时瞟弹幕用 -->
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <h2 class="text-sm font-medium text-slate-300">弹幕悬浮窗</h2>
+          <p class="mt-1 text-xs text-slate-500">
+            单屏主播必备：游戏全屏时也能瞟一眼实时弹幕 + 礼物。窗口永远置顶、可拖动 / 缩放 / 调透明度。
+          </p>
+        </div>
+        <button
+          class="relative h-5 w-9 shrink-0 rounded-full transition"
+          :class="danmuOverlayEnabled ? 'bg-emerald-500' : 'bg-slate-600'"
+          @click="toggleDanmuOverlay"
+          :title="danmuOverlayEnabled ? '关闭悬浮窗' : '打开悬浮窗'"
+        >
+          <span
+            class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition"
+            :class="danmuOverlayEnabled ? 'translate-x-4' : 'translate-x-0'"
+          ></span>
+        </button>
+      </div>
     </section>
 
     <!-- 快捷开关：直接控制三条默认规则的 enabled -->

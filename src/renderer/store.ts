@@ -12,6 +12,7 @@ export const voices = ref<VoiceOption[]>([])
 export const bilibiliAuth = ref<BilibiliAuth>({ sessdata: '', uid: '', buvid: '' })
 export const rules = ref<Rule[]>([])
 export const logs = ref<LogEntry[]>([])
+export const danmuOverlayEnabled = ref<boolean>(false)
 
 export type PageKey = 'home' | 'rules' | 'tts' | 'logs'
 export const currentPage = ref<PageKey>('home')
@@ -74,6 +75,26 @@ export async function loadInitialData(): Promise<void> {
     }
   })
   api.onOverlayStatus((s) => applyOverlayState(s))
+
+  // 弹幕悬浮窗状态初始化 + 订阅
+  try {
+    const s = await api.danmuOverlayStatus()
+    danmuOverlayEnabled.value = s.enabled
+  } catch (err) {
+    console.error('danmuOverlayStatus failed', err)
+  }
+  api.onDanmuOverlayStatus((s) => {
+    danmuOverlayEnabled.value = s.enabled
+  })
+}
+
+export async function toggleDanmuOverlay(): Promise<void> {
+  try {
+    const next = await window.api.danmuOverlayToggle()
+    danmuOverlayEnabled.value = next.enabled
+  } catch (err) {
+    console.error('danmuOverlayToggle failed', err)
+  }
 }
 
 function applyOverlayState(s: OverlayState): void {

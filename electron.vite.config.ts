@@ -40,6 +40,7 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src/renderer'),
         '@overlay': resolve('src/overlay'),
+        '@danmu-overlay': resolve('src/danmu-overlay'),
         '@shared': resolve('src/shared')
       }
     },
@@ -48,7 +49,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
-          overlay: resolve('src/overlay/index.html')
+          overlay: resolve('src/overlay/index.html'),
+          'danmu-overlay': resolve('src/danmu-overlay/index.html')
         }
       }
     }

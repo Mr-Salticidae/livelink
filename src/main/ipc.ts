@@ -8,6 +8,7 @@ import type { OverlayController } from './overlay-controller'
 import type { AppConfig, BilibiliAuth } from './config/store'
 import type { LogSink, LogEntry } from './actions/log'
 import type { Rule } from './rules/types'
+import type { DanmuOverlayWindow } from './danmu-overlay-window'
 import { toFriendlyError } from './errors/friendly'
 
 export interface IpcDeps {
@@ -17,13 +18,24 @@ export interface IpcDeps {
   ttsPlayer: TTSPlayer
   overlayServer: OverlayServer
   overlayController: OverlayController
+  danmuOverlay: DanmuOverlayWindow
   config: AppConfig
   log: LogSink
   status: { current: ConnectionStatus }
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
-  const { adapter, engine, ttsPlayer, overlayServer, overlayController, config, log, status } = deps
+  const {
+    adapter,
+    engine,
+    ttsPlayer,
+    overlayServer,
+    overlayController,
+    danmuOverlay,
+    config,
+    log,
+    status
+  } = deps
 
   function pushStatus(next: ConnectionStatus): void {
     status.current = next
@@ -155,6 +167,27 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IpcChannels.OverlayUrl, () => overlayServer.getOverlayUrl())
   ipcMain.handle(IpcChannels.OverlayStatus, () => overlayController.getState())
   ipcMain.handle(IpcChannels.OverlayRetry, async () => overlayController.retry())
+
+  // ─── 弹幕悬浮窗 ────────────────────────────────────────────
+  ipcMain.handle(IpcChannels.DanmuOverlayOpen, () => {
+    danmuOverlay.open()
+    return danmuOverlay.getStatus()
+  })
+  ipcMain.handle(IpcChannels.DanmuOverlayClose, () => {
+    danmuOverlay.close()
+    return danmuOverlay.getStatus()
+  })
+  ipcMain.handle(IpcChannels.DanmuOverlayToggle, () => {
+    danmuOverlay.toggle()
+    return danmuOverlay.getStatus()
+  })
+  ipcMain.handle(IpcChannels.DanmuOverlayStatus, () => danmuOverlay.getStatus())
+  ipcMain.handle(IpcChannels.DanmuOverlayGetSettings, () => danmuOverlay.getSettings())
+
+  // 把弹幕窗状态变化推到主窗口 UI（开关 toggle UI 状态）
+  danmuOverlay.onStatusChange((s) => {
+    deps.getMainWindow()?.webContents.send(IpcChannels.DanmuOverlayStatusUpdate, s)
+  })
 
   // ─── 规则 ────────────────────────────────────────────────────
   ipcMain.handle(IpcChannels.RuleList, () => config.getRules())

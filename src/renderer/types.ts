@@ -103,6 +103,15 @@ export interface ApiSurface {
   retryOverlay: () => Promise<OverlayState>
   onOverlayStatus: (cb: (s: OverlayState) => void) => () => void
 
+  // 弹幕悬浮窗
+  danmuOverlayOpen: () => Promise<{ enabled: boolean }>
+  danmuOverlayClose: () => Promise<{ enabled: boolean }>
+  danmuOverlayToggle: () => Promise<{ enabled: boolean }>
+  danmuOverlayStatus: () => Promise<{ enabled: boolean }>
+  getDanmuOverlaySettings: () => Promise<{ opacity: number; fontSize: number }>
+  onDanmuOverlayStatus: (cb: (s: { enabled: boolean }) => void) => () => void
+  onDanmuOverlayEvent: (cb: (item: unknown) => void) => () => void
+
   ruleList: () => Promise<Rule[]>
   ruleUpsert: (rule: Rule) => Promise<Rule[]>
   ruleDelete: (id: string) => Promise<Rule[]>

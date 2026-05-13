@@ -11,6 +11,7 @@ import { OverlayBroadcaster } from './actions/overlay'
 import { LogSink } from './actions/log'
 import { OverlayServer } from './overlay-server/server'
 import { OverlayController } from './overlay-controller'
+import { DanmuOverlayWindow } from './danmu-overlay-window'
 import { GiftService } from './services/gift-config'
 import { BlindboxStore } from './services/blindbox-store'
 import { AppConfig } from './config/store'
@@ -40,6 +41,7 @@ const overlayController = new OverlayController(
 
 const adapter = new BilibiliAdapter()
 const blindboxStore = new BlindboxStore()
+const danmuOverlay = new DanmuOverlayWindow(config, bus, join(__dirname, '../renderer'))
 const dispatcher = new ActionDispatcher({
   tts: ttsPlayer,
   overlay: overlayBroadcaster,
@@ -141,12 +143,18 @@ app.whenReady().then(async () => {
     ttsPlayer,
     overlayServer,
     overlayController,
+    danmuOverlay,
     config,
     log,
     status
   })
 
   createWindow()
+
+  // 上次会话开着的话，启动时自动恢复（持久化记忆）
+  if (config.getDanmuOverlay().enabled) {
+    danmuOverlay.open()
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -176,6 +184,11 @@ async function cleanup(): Promise<void> {
     } catch (err) {
       console.error('[main] giftService stop failed', err)
     }
+  }
+  try {
+    danmuOverlay.dispose()
+  } catch (err) {
+    console.error('[main] danmuOverlay dispose failed', err)
   }
   ttsPlayer.dispose()
   engine.detach()
