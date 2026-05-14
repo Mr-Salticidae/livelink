@@ -125,6 +125,14 @@ function createWindow(): void {
     // 避免它独立存活导致 window-all-closed 不触发，进程驻留
     ttsPlayer.dispose()
     ttsPlayer.setParentWindow(null)
+    // 1.0.2 修复：主窗关闭时主动销毁弹幕悬浮窗。
+    // danmuOverlay 是独立 BrowserWindow（不能 parent 化，否则跟随主窗最小化
+    // 影响主播游戏时看弹幕的体验），存活的话 window-all-closed 不触发 → 进程驻留
+    try {
+      danmuOverlay.dispose()
+    } catch (err) {
+      console.error('[main] danmuOverlay dispose on mainWindow closed failed', err)
+    }
     mainWindow = null
   })
 

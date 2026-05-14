@@ -134,13 +134,17 @@ onBeforeUnmount(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  /* 0.4.2: 实色背景（取消 transparent BrowserWindow 之后 alpha 不再生效，
-     如果用 rgba 会看到底色不透明黑。改用实色 slate-900。要"透"靠拖小窗口 */
-  background: #0f172a;
+  /* 1.0.2 恢复半透明：rgba(15,23,42, var(--opacity, 0.85)) 配合
+     BrowserWindow transparent:true，让游戏画面透过弹幕窗能看到。
+     opacity 默认 0.85，主播可在主窗未来加滑条调（暂未暴露 UI） */
+  background: rgba(15, 23, 42, var(--opacity, 0.85));
   border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 8px;
   color: #e2e8f0;
   font-size: var(--font-size, 14px);
   overflow: hidden;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .title-bar {
