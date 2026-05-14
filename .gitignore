@@ -16,3 +16,6 @@ out/
 # 图标处理中间产物 / MJ 原图（icon.ico 才是分发用的最终资源）
 resources/_processed/
 resources/mr_jumping_spider_*.png
+
+# Claude Code worktree（git 自动管理的子工作树，不应被父仓库追踪）
+.claude/worktrees/
