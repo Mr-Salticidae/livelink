@@ -13,6 +13,8 @@ import VotingCard from './components/VotingCard.vue'
 import VotingResultCard from './components/VotingResultCard.vue'
 import HorseRaceCard from './components/HorseRaceCard.vue'
 import HorseRaceResultCard from './components/HorseRaceResultCard.vue'
+import GuessingCard from './components/GuessingCard.vue'
+import GuessingResultCard from './components/GuessingResultCard.vue'
 import IntroBanner from './components/IntroBanner.vue'
 import Celebration from './components/Celebration.vue'
 
@@ -77,6 +79,30 @@ interface LotteryResultState {
   prize: string
   winners: Array<{ uid: string; uname: string }>
   participantCount: number
+}
+
+interface GuessingOpt { key: string; label: string }
+interface GuessingActive {
+  phase: 'enrolling' | 'settling'
+  title: string
+  options: GuessingOpt[]
+  bets: Record<string, number>
+  pool: number
+  bettorCount: number
+  currencyName: string
+  defaultBet: number
+  endsAt?: number
+}
+interface GuessingWinner { uname: string; bet: number; payout: number }
+interface GuessingResult {
+  id: string
+  title: string
+  options: GuessingOpt[]
+  winnerKey: string
+  winnerLabel: string
+  winners: GuessingWinner[]
+  pool: number
+  bets: Record<string, number>
 }
 
 interface HorseDef { key: string; name: string; emoji: string }
@@ -149,6 +175,9 @@ const activeVotingResult = ref<VotingResultState | null>(null)
 const HORSE_RESULT_MS = 10_000
 const activeHorseRace = ref<HorseRaceActive | null>(null)
 const activeHorseRaceResult = ref<HorseRaceResult | null>(null)
+const GUESSING_RESULT_MS = 10_000
+const activeGuessing = ref<GuessingActive | null>(null)
+const activeGuessingResult = ref<GuessingResult | null>(null)
 
 // 开场招牌：游戏启动那 2.4 秒显示
 interface IntroState {
@@ -460,6 +489,108 @@ onMounted(() => {
     activeHorseRace.value = null
   })
 
+  // 竞猜：start / tick / locked / result / cancelled
+  on<OverlayPayload>('guessing.start', (msg) => {
+    const x = msg.extra as
+      | {
+          title?: string
+          options?: GuessingOpt[]
+          endsAt?: number
+          bets?: Record<string, number>
+          pool?: number
+          bettorCount?: number
+          currencyName?: string
+          defaultBet?: number
+        }
+      | undefined
+    if (!x?.endsAt || !Array.isArray(x.options)) return
+    activeGuessingResult.value = null
+    activeGuessing.value = {
+      phase: 'enrolling',
+      title: x.title ?? '',
+      options: x.options,
+      bets: x.bets ?? {},
+      pool: x.pool ?? 0,
+      bettorCount: x.bettorCount ?? 0,
+      currencyName: x.currencyName ?? '哈松币',
+      defaultBet: x.defaultBet ?? 100,
+      endsAt: x.endsAt
+    }
+    showIntro({
+      icon: '🎲',
+      title: '竞猜开始啦',
+      subtitle: x.title ?? '弹幕押注',
+      theme: 'amber'
+    })
+  })
+  on<OverlayPayload>('guessing.tick', (msg) => {
+    const x = msg.extra as
+      | { bets?: Record<string, number>; pool?: number; bettorCount?: number }
+      | undefined
+    if (!activeGuessing.value || !x?.bets) return
+    activeGuessing.value = {
+      ...activeGuessing.value,
+      bets: x.bets,
+      pool: x.pool ?? activeGuessing.value.pool,
+      bettorCount: x.bettorCount ?? activeGuessing.value.bettorCount
+    }
+  })
+  on<OverlayPayload>('guessing.locked', (msg) => {
+    const x = msg.extra as
+      | {
+          title?: string
+          options?: GuessingOpt[]
+          bets?: Record<string, number>
+          pool?: number
+          bettorCount?: number
+        }
+      | undefined
+    if (!activeGuessing.value) return
+    activeGuessing.value = {
+      ...activeGuessing.value,
+      phase: 'settling',
+      title: x?.title ?? activeGuessing.value.title,
+      options: x?.options ?? activeGuessing.value.options,
+      bets: x?.bets ?? activeGuessing.value.bets,
+      pool: x?.pool ?? activeGuessing.value.pool,
+      bettorCount: x?.bettorCount ?? activeGuessing.value.bettorCount,
+      endsAt: undefined
+    }
+  })
+  on<OverlayPayload>('guessing.result', (msg) => {
+    const x = msg.extra as
+      | {
+          title?: string
+          options?: GuessingOpt[]
+          winnerKey?: string
+          winnerLabel?: string
+          winners?: GuessingWinner[]
+          pool?: number
+          bets?: Record<string, number>
+        }
+      | undefined
+    activeGuessing.value = null
+    if (!x || !x.winnerKey) return
+    const result: GuessingResult = {
+      id: uid(),
+      title: x.title ?? '',
+      options: x.options ?? [],
+      winnerKey: x.winnerKey,
+      winnerLabel: x.winnerLabel ?? x.winnerKey,
+      winners: x.winners ?? [],
+      pool: x.pool ?? 0,
+      bets: x.bets ?? {}
+    }
+    activeGuessingResult.value = result
+    if (result.winners.length > 0) triggerCelebration()
+    window.setTimeout(() => {
+      if (activeGuessingResult.value?.id === result.id) activeGuessingResult.value = null
+    }, GUESSING_RESULT_MS)
+  })
+  on<OverlayPayload>('guessing.cancelled', () => {
+    activeGuessing.value = null
+  })
+
   // SuperChat 横幅：系统级 broadcast，不依赖规则引擎。按价位放顶部 / 中央
   on<OverlayPayload>('super.chat.banner', (msg) => {
     const ev = msg.event
@@ -631,6 +762,41 @@ onMounted(() => {
         :price="sc.price"
         :avatar="sc.avatar"
         :duration-sec="sc.durationSec"
+      />
+    </div>
+
+    <!-- 竞猜进行中 / 买定离手卡（屏幕中央偏上） -->
+    <div
+      v-if="activeGuessing"
+      class="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2"
+    >
+      <GuessingCard
+        :phase="activeGuessing.phase"
+        :title="activeGuessing.title"
+        :options="activeGuessing.options"
+        :bets="activeGuessing.bets"
+        :pool="activeGuessing.pool"
+        :bettor-count="activeGuessing.bettorCount"
+        :currency-name="activeGuessing.currencyName"
+        :default-bet="activeGuessing.defaultBet"
+        :ends-at="activeGuessing.endsAt"
+      />
+    </div>
+
+    <!-- 竞猜结果卡（屏幕中央） -->
+    <div
+      v-if="activeGuessingResult"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+    >
+      <GuessingResultCard
+        :key="activeGuessingResult.id"
+        :title="activeGuessingResult.title"
+        :options="activeGuessingResult.options"
+        :winner-key="activeGuessingResult.winnerKey"
+        :winner-label="activeGuessingResult.winnerLabel"
+        :winners="activeGuessingResult.winners"
+        :pool="activeGuessingResult.pool"
+        :bets="activeGuessingResult.bets"
       />
     </div>
 

@@ -12,6 +12,10 @@ import type { DanmuOverlayWindow } from './danmu-overlay-window'
 import type { LotteryService, LotteryConfig } from './services/lottery'
 import type { VotingService, VotingConfig } from './services/voting'
 import type { HorseRaceService, HorseRaceConfig } from './services/horse-race'
+import type { GuessingService, GuessingConfig } from './services/guessing'
+import { setInitialBalanceFallback } from './services/guessing'
+import type { WalletStore } from './services/wallet-store'
+import type { GuessingGlobalConfig } from './config/store'
 import { toFriendlyError } from './errors/friendly'
 
 export interface IpcDeps {
@@ -25,6 +29,8 @@ export interface IpcDeps {
   lottery: LotteryService
   voting: VotingService
   horseRace: HorseRaceService
+  guessing: GuessingService
+  wallet: WalletStore
   config: AppConfig
   log: LogSink
   status: { current: ConnectionStatus }
@@ -41,6 +47,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     lottery,
     voting,
     horseRace,
+    guessing,
+    wallet,
     config,
     log,
     status
@@ -310,6 +318,64 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   horseRace.onStatusChange((s) => {
     deps.getMainWindow()?.webContents.send(IpcChannels.HorseRaceStatusUpdate, s)
+  })
+
+  // ─── 竞猜（哈松币押注） ─────────────────────────────────────
+  // 把 currency.initialBalance 同步到 GuessingService 的 fallback（押注时首次开户用）
+  setInitialBalanceFallback(config.getGuessing().initialBalance)
+
+  ipcMain.handle(IpcChannels.GuessingStart, (_e, c: GuessingConfig) => {
+    const g = config.getGuessing()
+    setInitialBalanceFallback(g.initialBalance)
+    const r = guessing.start(c, g.currencyName)
+    if (!r.ok) throw new Error(r.error)
+    return guessing.getState()
+  })
+  ipcMain.handle(IpcChannels.GuessingLockNow, () => {
+    const r = guessing.lockNow()
+    if (!r.ok) throw new Error(r.error)
+    return guessing.getState()
+  })
+  ipcMain.handle(IpcChannels.GuessingSettle, (_e, winnerKey: string) => {
+    const r = guessing.settle(winnerKey)
+    if (!r.ok) throw new Error(r.error)
+    return guessing.getState()
+  })
+  ipcMain.handle(IpcChannels.GuessingCancel, () => {
+    const r = guessing.cancel()
+    if (!r.ok) throw new Error(r.error)
+    return guessing.getState()
+  })
+  ipcMain.handle(IpcChannels.GuessingReset, () => {
+    guessing.reset()
+    return guessing.getState()
+  })
+  ipcMain.handle(IpcChannels.GuessingStatus, () => guessing.getState())
+  ipcMain.handle(IpcChannels.GuessingGetConfig, () => config.getGuessing())
+  ipcMain.handle(IpcChannels.GuessingPatchConfig, (_e, patch: Partial<GuessingGlobalConfig>) => {
+    const next = config.patchGuessing(patch)
+    setInitialBalanceFallback(next.initialBalance)
+    return next
+  })
+  ipcMain.handle(
+    IpcChannels.GuessingTopBalance,
+    (_e, limit?: number) => {
+      const rid = adapter.currentRoomId
+      if (rid == null) return []
+      return wallet.topByBalance(rid, limit ?? 10)
+    }
+  )
+  ipcMain.handle(
+    IpcChannels.GuessingQueryWallet,
+    (_e, uid: string, uname: string) => {
+      const rid = adapter.currentRoomId
+      if (rid == null) return null
+      return wallet.query(rid, uid, uname)
+    }
+  )
+
+  guessing.onStatusChange((s) => {
+    deps.getMainWindow()?.webContents.send(IpcChannels.GuessingStatusUpdate, s)
   })
 
   // ─── 规则 ────────────────────────────────────────────────────

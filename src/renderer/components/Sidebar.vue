@@ -8,6 +8,7 @@ const items: { key: PageKey; label: string; icon: string }[] = [
   { key: 'lottery', label: '抽奖', icon: '🎰' },
   { key: 'voting', label: '投票', icon: '📊' },
   { key: 'horserace', label: '赛马', icon: '🐎' },
+  { key: 'guessing', label: '竞猜', icon: '🎲' },
   { key: 'logs', label: '日志', icon: '📝' }
 ]
 

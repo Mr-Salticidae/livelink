@@ -144,6 +144,26 @@ const api = {
     return () => ipcRenderer.removeListener(IpcChannels.HorseRaceStatusUpdate, handler)
   },
 
+  // 竞猜
+  guessingStart: (config: unknown) =>
+    ipcRenderer.invoke(IpcChannels.GuessingStart, cleanForIpc(config)),
+  guessingLockNow: () => ipcRenderer.invoke(IpcChannels.GuessingLockNow),
+  guessingSettle: (winnerKey: string) =>
+    ipcRenderer.invoke(IpcChannels.GuessingSettle, winnerKey),
+  guessingCancel: () => ipcRenderer.invoke(IpcChannels.GuessingCancel),
+  guessingReset: () => ipcRenderer.invoke(IpcChannels.GuessingReset),
+  guessingStatus: () => ipcRenderer.invoke(IpcChannels.GuessingStatus),
+  guessingGetConfig: () => ipcRenderer.invoke(IpcChannels.GuessingGetConfig),
+  guessingPatchConfig: (patch: unknown) =>
+    ipcRenderer.invoke(IpcChannels.GuessingPatchConfig, cleanForIpc(patch)),
+  guessingTopBalance: (limit?: number) =>
+    ipcRenderer.invoke(IpcChannels.GuessingTopBalance, limit),
+  onGuessingStatus: (cb: (s: unknown) => void) => {
+    const handler = (_: IpcRendererEvent, s: unknown): void => cb(s)
+    ipcRenderer.on(IpcChannels.GuessingStatusUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.GuessingStatusUpdate, handler)
+  },
+
   // 日志
   logRecent: (limit?: number) => ipcRenderer.invoke(IpcChannels.LogRecent, limit),
   logClear: () => ipcRenderer.invoke(IpcChannels.LogClear),

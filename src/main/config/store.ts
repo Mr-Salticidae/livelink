@@ -13,6 +13,27 @@ export interface BilibiliAuth {
   buvid: string // buvid3，可选
 }
 
+// 竞猜（猜结果押哈松币）
+export interface GuessingOption {
+  key: string
+  label: string
+}
+export interface GuessingPreset {
+  id: string // 唯一标识（创建时间戳 / uuid）
+  name: string // 主播看的 preset 显示名（"出大红地点" / "谁收益最高"）
+  title: string // 启动后 Overlay 顶部大字标题
+  options: GuessingOption[]
+  enrollSec: number
+  defaultBet: number
+  requireAnchorFansMedal: boolean
+  minFansMedalLevel: number
+}
+export interface GuessingGlobalConfig {
+  currencyName: string // "哈松币" 主播可改
+  initialBalance: number // 首次参与赠送
+  presets: GuessingPreset[]
+}
+
 // 赛马 preset
 export interface HorseRacePreset {
   horses: { key: string; name: string; emoji: string }[]
@@ -86,6 +107,7 @@ export interface AppConfigSchema {
   lottery: LotteryPreset
   voting: VotingPreset
   horseRace: HorseRacePreset
+  guessing: GuessingGlobalConfig
 }
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
@@ -111,6 +133,43 @@ const DEFAULT_LOTTERY_PRESET: LotteryPreset = {
   durationSec: 60,
   requireAnchorFansMedal: false,
   minFansMedalLevel: 0
+}
+
+// 默认竞猜 preset 对照松子的两个玩法
+const DEFAULT_GUESSING: GuessingGlobalConfig = {
+  currencyName: '哈松币',
+  initialBalance: 1000,
+  presets: [
+    {
+      id: 'preset-big-red-location',
+      name: '出大红地点',
+      title: '猜松子今天会从哪里出大红',
+      options: [
+        { key: '1', label: '零号大坝' },
+        { key: '2', label: '长弓溪谷' },
+        { key: '3', label: '航天基地' },
+        { key: '4', label: '巴克什' }
+      ],
+      enrollSec: 180,
+      defaultBet: 100,
+      requireAnchorFansMedal: false,
+      minFansMedalLevel: 0
+    },
+    {
+      id: 'preset-highest-profit',
+      name: '谁收益最高',
+      title: '猜今天谁收益最高并撤离',
+      options: [
+        { key: '1', label: '松子' },
+        { key: '2', label: '待定 1' },
+        { key: '3', label: '待定 2' }
+      ],
+      enrollSec: 120,
+      defaultBet: 100,
+      requireAnchorFansMedal: false,
+      minFansMedalLevel: 0
+    }
+  ]
 }
 
 const DEFAULT_HORSE_RACE_PRESET: HorseRacePreset = {
@@ -149,7 +208,8 @@ const defaults: AppConfigSchema = {
   danmuBoard: { ...DEFAULT_DANMU_BOARD },
   lottery: { ...DEFAULT_LOTTERY_PRESET },
   voting: { ...DEFAULT_VOTING_PRESET },
-  horseRace: { ...DEFAULT_HORSE_RACE_PRESET, horses: [...DEFAULT_HORSE_RACE_PRESET.horses] }
+  horseRace: { ...DEFAULT_HORSE_RACE_PRESET, horses: [...DEFAULT_HORSE_RACE_PRESET.horses] },
+  guessing: { ...DEFAULT_GUESSING, presets: DEFAULT_GUESSING.presets.map((p) => ({ ...p, options: [...p.options] })) }
 }
 
 export class AppConfig {
@@ -331,6 +391,45 @@ export class AppConfig {
     const next: DanmuBoardConfig = { ...this.getDanmuBoard(), ...patch }
     this.setDanmuBoard(next)
     return this.getDanmuBoard() // 返回 clamp 后的值
+  }
+
+  // 竞猜（全局货币 + preset 列表）
+  getGuessing(): GuessingGlobalConfig {
+    const stored = this.store.get('guessing') as GuessingGlobalConfig | undefined
+    if (!stored) {
+      return {
+        ...DEFAULT_GUESSING,
+        presets: DEFAULT_GUESSING.presets.map((p) => ({ ...p, options: [...p.options] }))
+      }
+    }
+    return {
+      currencyName: stored.currencyName || DEFAULT_GUESSING.currencyName,
+      initialBalance:
+        typeof stored.initialBalance === 'number'
+          ? stored.initialBalance
+          : DEFAULT_GUESSING.initialBalance,
+      presets:
+        Array.isArray(stored.presets) && stored.presets.length > 0
+          ? stored.presets.map((p) => ({
+              id: p.id || `preset-${Date.now()}`,
+              name: p.name || '未命名',
+              title: p.title || '',
+              options: Array.isArray(p.options) ? p.options.map((o) => ({ ...o })) : [],
+              enrollSec: p.enrollSec ?? 180,
+              defaultBet: p.defaultBet ?? 100,
+              requireAnchorFansMedal: p.requireAnchorFansMedal ?? false,
+              minFansMedalLevel: p.minFansMedalLevel ?? 0
+            }))
+          : DEFAULT_GUESSING.presets.map((p) => ({ ...p, options: [...p.options] }))
+    }
+  }
+  setGuessing(cfg: GuessingGlobalConfig): void {
+    this.store.set('guessing', cfg)
+  }
+  patchGuessing(patch: Partial<GuessingGlobalConfig>): GuessingGlobalConfig {
+    const next: GuessingGlobalConfig = { ...this.getGuessing(), ...patch }
+    this.setGuessing(next)
+    return this.getGuessing()
   }
 
   // 赛马 preset

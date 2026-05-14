@@ -17,6 +17,8 @@ import { BlindboxStore } from './services/blindbox-store'
 import { LotteryService } from './services/lottery'
 import { VotingService } from './services/voting'
 import { HorseRaceService } from './services/horse-race'
+import { GuessingService } from './services/guessing'
+import { WalletStore } from './services/wallet-store'
 import { AppConfig } from './config/store'
 import { registerIpcHandlers } from './ipc'
 import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
@@ -48,6 +50,13 @@ const danmuOverlay = new DanmuOverlayWindow(config, bus, join(__dirname, '../ren
 const lottery = new LotteryService(bus, overlayBroadcaster)
 const voting = new VotingService(bus, overlayBroadcaster)
 const horseRace = new HorseRaceService(bus, overlayBroadcaster)
+const wallet = new WalletStore()
+const guessing = new GuessingService(
+  bus,
+  overlayBroadcaster,
+  wallet,
+  () => adapter.currentRoomId
+)
 const dispatcher = new ActionDispatcher({
   tts: ttsPlayer,
   overlay: overlayBroadcaster,
@@ -189,6 +198,8 @@ app.whenReady().then(async () => {
     lottery,
     voting,
     horseRace,
+    guessing,
+    wallet,
     config,
     log,
     status
@@ -249,6 +260,11 @@ async function cleanup(): Promise<void> {
     horseRace.dispose()
   } catch (err) {
     console.error('[main] horseRace dispose failed', err)
+  }
+  try {
+    guessing.dispose()
+  } catch (err) {
+    console.error('[main] guessing dispose failed', err)
   }
   ttsPlayer.dispose()
   engine.detach()

@@ -90,6 +90,73 @@ export interface DanmuBoardConfig {
   showGift: boolean
 }
 
+// 竞猜
+export interface GuessingOption {
+  key: string
+  label: string
+}
+export interface GuessingPreset {
+  id: string
+  name: string
+  title: string
+  options: GuessingOption[]
+  enrollSec: number
+  defaultBet: number
+  requireAnchorFansMedal: boolean
+  minFansMedalLevel: number
+}
+export interface GuessingGlobalConfig {
+  currencyName: string
+  initialBalance: number
+  presets: GuessingPreset[]
+}
+export interface GuessingConfig {
+  title: string
+  options: GuessingOption[]
+  enrollSec: number
+  defaultBet: number
+  requireAnchorFansMedal: boolean
+  minFansMedalLevel: number
+}
+export interface GuessingWinner {
+  uname: string
+  bet: number
+  payout: number
+}
+export type GuessingState =
+  | { phase: 'idle' }
+  | {
+      phase: 'enrolling'
+      config: GuessingConfig
+      startedAt: number
+      endsAt: number
+      pool: number
+      bets: Record<string, number>
+      bettorCount: number
+    }
+  | {
+      phase: 'settling'
+      config: GuessingConfig
+      pool: number
+      bets: Record<string, number>
+      bettorCount: number
+    }
+  | {
+      phase: 'done'
+      config: GuessingConfig
+      winnerKey: string
+      winners: GuessingWinner[]
+      pool: number
+      bets: Record<string, number>
+    }
+export interface WalletEntry {
+  uname: string
+  balance: number
+  totalBet: number
+  totalWon: number
+  lastActiveAt: number
+}
+
 // 赛马
 export interface Horse {
   key: string
@@ -271,6 +338,18 @@ export interface ApiSurface {
   horseRaceStatus: () => Promise<HorseRaceState>
   horseRaceGetPreset: () => Promise<HorseRaceConfig>
   onHorseRaceStatus: (cb: (s: HorseRaceState) => void) => () => void
+
+  // 竞猜
+  guessingStart: (config: GuessingConfig) => Promise<GuessingState>
+  guessingLockNow: () => Promise<GuessingState>
+  guessingSettle: (winnerKey: string) => Promise<GuessingState>
+  guessingCancel: () => Promise<GuessingState>
+  guessingReset: () => Promise<GuessingState>
+  guessingStatus: () => Promise<GuessingState>
+  guessingGetConfig: () => Promise<GuessingGlobalConfig>
+  guessingPatchConfig: (patch: Partial<GuessingGlobalConfig>) => Promise<GuessingGlobalConfig>
+  guessingTopBalance: (limit?: number) => Promise<WalletEntry[]>
+  onGuessingStatus: (cb: (s: GuessingState) => void) => () => void
 
   ruleList: () => Promise<Rule[]>
   ruleUpsert: (rule: Rule) => Promise<Rule[]>

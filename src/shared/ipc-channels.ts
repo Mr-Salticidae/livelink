@@ -75,6 +75,19 @@ export const IpcChannels = {
   HorseRaceStatusUpdate: 'horserace:status-update',
   HorseRaceGetPreset: 'horserace:get-preset',
 
+  // 竞猜（哈松币押注）
+  GuessingStart: 'guessing:start',
+  GuessingLockNow: 'guessing:lock-now',
+  GuessingSettle: 'guessing:settle',
+  GuessingCancel: 'guessing:cancel',
+  GuessingReset: 'guessing:reset',
+  GuessingStatus: 'guessing:status',
+  GuessingStatusUpdate: 'guessing:status-update',
+  GuessingGetConfig: 'guessing:get-config',
+  GuessingPatchConfig: 'guessing:patch-config', // 改 currency / initialBalance / presets
+  GuessingQueryWallet: 'guessing:query-wallet',
+  GuessingTopBalance: 'guessing:top-balance',
+
   // 日志（主→渲染 push）
   LogAppend: 'log:append',
   LogRecent: 'log:recent',
