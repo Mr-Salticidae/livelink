@@ -73,5 +73,19 @@ export const defaultRules: Rule[] = [
       // query_blindbox 自己从 blindbox-store 读，没有则静默；有就推 overlay 卡片
       { kind: 'query_blindbox' }
     ]
+  },
+  {
+    id: 'wallet.query.default',
+    name: '查余额',
+    enabled: true,
+    trigger: 'danmu.received',
+    match: { kind: 'keyword', keywords: ['查余额', '我的余额', '查货币', '我的哈松币'], mode: 'any' },
+    cooldownSec: 3,
+    perUserCooldownSec: 30,
+    actions: [
+      { kind: 'log', template: { text: '{uname} 查询货币余额' } },
+      // query_wallet 自己从 wallet-store 读，无记录时也推一张"待开户"提示卡
+      { kind: 'query_wallet' }
+    ]
   }
 ]

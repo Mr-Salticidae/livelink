@@ -4,7 +4,7 @@ export interface RuleTemplate {
   text: string // 占位符：{uname} {giftName} {num} {content} {guardLevel} {price} 等
 }
 
-export type ActionKind = 'tts' | 'overlay' | 'log' | 'query_blindbox'
+export type ActionKind = 'tts' | 'overlay' | 'log' | 'query_blindbox' | 'query_wallet'
 
 export interface ActionSpec {
   kind: ActionKind

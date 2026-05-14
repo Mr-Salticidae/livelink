@@ -19,6 +19,7 @@ import { VotingService } from './services/voting'
 import { HorseRaceService } from './services/horse-race'
 import { GuessingService } from './services/guessing'
 import { WalletStore } from './services/wallet-store'
+import { WalletDepositService } from './services/wallet-deposit'
 import { AppConfig } from './config/store'
 import { registerIpcHandlers } from './ipc'
 import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
@@ -57,12 +58,22 @@ const guessing = new GuessingService(
   wallet,
   () => adapter.currentRoomId
 )
+const walletDeposit = new WalletDepositService({
+  bus,
+  wallet,
+  getGuessingConfig: () => config.getGuessing(),
+  getCurrentRoomId: () => adapter.currentRoomId
+})
+walletDeposit.attach()
 const dispatcher = new ActionDispatcher({
   tts: ttsPlayer,
   overlay: overlayBroadcaster,
   log,
   blindboxStore,
-  getCurrentRoomId: () => adapter.currentRoomId
+  wallet,
+  getCurrentRoomId: () => adapter.currentRoomId,
+  getCurrencyName: () => config.getGuessing().currencyName,
+  getInitialBalance: () => config.getGuessing().initialBalance
 })
 const engine = new RuleEngine({ bus, dispatcher })
 

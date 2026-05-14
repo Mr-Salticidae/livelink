@@ -7,6 +7,11 @@ import type { GuessingGlobalConfig, GuessingPreset, GuessingOption, WalletEntry 
 const globalCfg = ref<GuessingGlobalConfig>({
   currencyName: '哈松币',
   initialBalance: 1000,
+  giftDeposit: {
+    enabled: true,
+    rmbToCoinRate: 1000,
+    includeSilver: false
+  },
   presets: []
 })
 const activePresetId = ref<string>('')
@@ -164,6 +169,21 @@ async function updateInitialBalance(n: number): Promise<void> {
   await persistConfig()
 }
 
+// 礼物入金配置
+async function toggleGiftDeposit(enabled: boolean): Promise<void> {
+  globalCfg.value.giftDeposit.enabled = enabled
+  await persistConfig()
+}
+async function updateRate(n: number): Promise<void> {
+  if (!Number.isFinite(n) || n <= 0) return
+  globalCfg.value.giftDeposit.rmbToCoinRate = Math.max(1, Math.round(n))
+  await persistConfig()
+}
+async function toggleIncludeSilver(v: boolean): Promise<void> {
+  globalCfg.value.giftDeposit.includeSilver = v
+  await persistConfig()
+}
+
 // 钱包排行榜
 const topBalance = ref<WalletEntry[]>([])
 async function refreshTopBalance(): Promise<void> {
@@ -219,7 +239,7 @@ const winnerLabel = computed(() => {
     >{{ error }}</p>
 
     <!-- 全局货币设置 -->
-    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
       <h2 class="text-xs uppercase tracking-wide text-slate-500">全局货币设置</h2>
       <div class="grid grid-cols-2 gap-3">
         <label class="text-xs text-slate-400">
@@ -241,6 +261,46 @@ const winnerLabel = computed(() => {
             class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
           />
         </label>
+      </div>
+
+      <!-- 礼物 → 哈松币 自动入金 -->
+      <div class="rounded-lg bg-slate-950/40 p-3 space-y-3">
+        <label class="flex items-center gap-2 text-sm text-slate-200">
+          <input
+            :checked="globalCfg.giftDeposit.enabled"
+            @change="toggleGiftDeposit(($event.target as HTMLInputElement).checked)"
+            type="checkbox"
+          />
+          <span>送礼自动兑换{{ globalCfg.currencyName }}</span>
+          <span class="text-xs text-slate-500">观众送礼时按价格自动入金，鼓励氪金参与</span>
+        </label>
+
+        <div v-if="globalCfg.giftDeposit.enabled" class="grid grid-cols-2 gap-3">
+          <label class="text-xs text-slate-400">
+            兑换比例（1 元礼物 = ? {{ globalCfg.currencyName }}）
+            <input
+              :value="globalCfg.giftDeposit.rmbToCoinRate"
+              @change="updateRate(Number(($event.target as HTMLInputElement).value))"
+              type="number" min="1"
+              class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
+            />
+            <span class="mt-1 block text-[10px] text-slate-500">
+              例：1000 = 送 1 块小心心拿 1000 {{ globalCfg.currencyName }}（够押 10 手默认）
+            </span>
+          </label>
+          <label class="text-xs text-slate-400 flex flex-col">
+            包含银瓜子礼物
+            <span class="mt-2 flex items-center gap-2">
+              <input
+                :checked="globalCfg.giftDeposit.includeSilver"
+                @change="toggleIncludeSilver(($event.target as HTMLInputElement).checked)"
+                type="checkbox"
+              />
+              <span class="text-slate-300">辣条等免费小礼物也入金</span>
+            </span>
+            <span class="mt-1 block text-[10px] text-slate-500">默认关闭，避免薅羊毛刷币</span>
+          </label>
+        </div>
       </div>
     </section>
 

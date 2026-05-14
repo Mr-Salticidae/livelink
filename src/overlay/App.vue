@@ -5,6 +5,7 @@ import type { OverlayPayload } from './types'
 import GiftEffect from './components/GiftEffect.vue'
 import ViewerEnterBanner from './components/ViewerEnterBanner.vue'
 import BlindboxCard from './components/BlindboxCard.vue'
+import WalletCard from './components/WalletCard.vue'
 import LotteryCard from './components/LotteryCard.vue'
 import LotteryResultCard from './components/LotteryResultCard.vue'
 import DanmuBoard from './components/DanmuBoard.vue'
@@ -64,6 +65,20 @@ interface BlindboxCardItem {
   id: string
   uname: string
   record: BlindboxRecord
+}
+
+interface WalletRecord {
+  balance: number
+  totalBet: number
+  totalWon: number
+  totalDeposited: number
+}
+interface WalletCardItem {
+  id: string
+  uname: string
+  currencyName: string
+  initialBalance: number
+  record: WalletRecord | null
 }
 
 interface LotteryRunningState {
@@ -156,12 +171,14 @@ const MAX_ACTIVE_GIFTS = 3
 const GIFT_VISIBLE_MS = 4000
 const ENTER_VISIBLE_MS = 4500
 const BLINDBOX_VISIBLE_MS = 7000
+const WALLET_VISIBLE_MS = 6000
 const LOTTERY_RESULT_MS = 10_000
 
 const activeGifts = ref<GiftItem[]>([])
 const giftQueue = ref<GiftItem[]>([])
 const activeEnters = ref<EnterItem[]>([])
 const activeBlindboxCard = ref<BlindboxCardItem | null>(null)
+const activeWalletCard = ref<WalletCardItem | null>(null)
 const activeLottery = ref<LotteryRunningState | null>(null)
 const activeLotteryResult = ref<LotteryResultState | null>(null)
 // SC：顶部排队（basic/premium/epic 最多 2 个同时显示），legendary 独占屏幕中央
@@ -294,6 +311,31 @@ onMounted(() => {
     window.setTimeout(() => {
       if (activeBlindboxCard.value?.id === item.id) activeBlindboxCard.value = null
     }, BLINDBOX_VISIBLE_MS)
+  })
+
+  // 货币余额查询卡：发"查余额"弹幕触发。无记录也推卡（"待开户"提示）。
+  // 同一时间只显示一张，新卡顶替旧卡
+  on<OverlayPayload>('wallet.card', (msg) => {
+    const extra = msg.extra as
+      | {
+          uname?: string
+          currencyName?: string
+          initialBalance?: number
+          record?: WalletRecord | null
+        }
+      | undefined
+    if (!extra) return
+    const item: WalletCardItem = {
+      id: uid(),
+      uname: extra.uname ?? msg.event?.user?.uname ?? '观众',
+      currencyName: extra.currencyName ?? '哈松币',
+      initialBalance: extra.initialBalance ?? 1000,
+      record: extra.record ?? null
+    }
+    activeWalletCard.value = item
+    window.setTimeout(() => {
+      if (activeWalletCard.value?.id === item.id) activeWalletCard.value = null
+    }, WALLET_VISIBLE_MS)
   })
 
   // 抽奖：start / tick / result / cancelled
@@ -696,6 +738,20 @@ onMounted(() => {
         :key="activeBlindboxCard.id"
         :uname="activeBlindboxCard.uname"
         :record="activeBlindboxCard.record"
+      />
+    </div>
+
+    <!-- 屏幕中央货币余额查询卡 -->
+    <div
+      v-if="activeWalletCard"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+    >
+      <WalletCard
+        :key="activeWalletCard.id"
+        :uname="activeWalletCard.uname"
+        :currency-name="activeWalletCard.currencyName"
+        :initial-balance="activeWalletCard.initialBalance"
+        :record="activeWalletCard.record"
       />
     </div>
 

@@ -13,6 +13,7 @@ export interface WalletEntry {
   balance: number
   totalBet: number // 累计押注金额
   totalWon: number // 累计赢得金额（含本金返还）
+  totalDeposited: number // 累计通过礼物兑换入金（1.1+）
   lastActiveAt: number
 }
 
@@ -50,8 +51,17 @@ export class WalletStore {
     const room = all[rid] ?? {}
     if (room[k]) {
       // uname 可能改了（极少见），更新
+      let dirty = false
       if (room[k].uname !== uname && uname) {
         room[k].uname = uname
+        dirty = true
+      }
+      // 1.1 新增 totalDeposited：老记录补 0
+      if (typeof room[k].totalDeposited !== 'number') {
+        room[k].totalDeposited = 0
+        dirty = true
+      }
+      if (dirty) {
         all[rid] = room
         this.store.set('records', all)
       }
@@ -62,6 +72,7 @@ export class WalletStore {
       balance: initialBalance,
       totalBet: 0,
       totalWon: 0,
+      totalDeposited: 0,
       lastActiveAt: Date.now()
     }
     room[k] = entry
@@ -114,6 +125,33 @@ export class WalletStore {
     }
     all[rid] = room
     this.store.set('records', all)
+  }
+
+  /** 礼物兑换入金。区别于 credit：deposit 可在首次（无记录）时直接开户入金，
+   * 且单独累计 totalDeposited 不影响竞猜的 totalBet/totalWon 统计 */
+  deposit(
+    roomId: number | string,
+    uid: string,
+    uname: string,
+    amount: number,
+    initialBalance: number
+  ): WalletEntry | null {
+    if (!Number.isFinite(amount) || amount <= 0) return null
+    const entry = this.getOrCreate(roomId, uid, uname, initialBalance)
+    const rid = String(roomId)
+    const k = WalletStore.keyOf(uid, uname)
+    const all = this.store.get('records')
+    const room = all[rid] ?? {}
+    const next: WalletEntry = {
+      ...entry,
+      balance: entry.balance + amount,
+      totalDeposited: (entry.totalDeposited ?? 0) + amount,
+      lastActiveAt: Date.now()
+    }
+    room[k] = next
+    all[rid] = room
+    this.store.set('records', all)
+    return next
   }
 
   /** 退还押注（取消游戏 / 改选项时用）。不计入 totalWon */

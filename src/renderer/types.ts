@@ -17,7 +17,7 @@ export type EventKind =
   | 'super.chat'
   | 'blindbox.opened'
 
-export type ActionKind = 'tts' | 'overlay' | 'log' | 'query_blindbox'
+export type ActionKind = 'tts' | 'overlay' | 'log' | 'query_blindbox' | 'query_wallet'
 
 export interface RuleTemplate {
   text: string
@@ -105,9 +105,15 @@ export interface GuessingPreset {
   requireAnchorFansMedal: boolean
   minFansMedalLevel: number
 }
+export interface GiftDepositConfig {
+  enabled: boolean
+  rmbToCoinRate: number
+  includeSilver: boolean
+}
 export interface GuessingGlobalConfig {
   currencyName: string
   initialBalance: number
+  giftDeposit: GiftDepositConfig
   presets: GuessingPreset[]
 }
 export interface GuessingConfig {
@@ -154,6 +160,7 @@ export interface WalletEntry {
   balance: number
   totalBet: number
   totalWon: number
+  totalDeposited: number
   lastActiveAt: number
 }
 

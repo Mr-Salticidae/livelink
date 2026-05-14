@@ -28,9 +28,18 @@ export interface GuessingPreset {
   requireAnchorFansMedal: boolean
   minFansMedalLevel: number
 }
+// 礼物 → 哈松币 自动兑换。打通"氪金 → 玩游戏"闭环：观众送礼自动入金，
+// 余额可拿去押竞猜 / 未来赛马等玩法
+export interface GiftDepositConfig {
+  enabled: boolean // 总开关
+  rmbToCoinRate: number // 1 元 礼物价 = 多少哈松币（默认 100）
+  includeSilver: boolean // 银瓜子礼物（辣条等免费小礼物）是否换币（默认 false）
+}
+
 export interface GuessingGlobalConfig {
   currencyName: string // "哈松币" 主播可改
   initialBalance: number // 首次参与赠送
+  giftDeposit: GiftDepositConfig
   presets: GuessingPreset[]
 }
 
@@ -135,10 +144,17 @@ const DEFAULT_LOTTERY_PRESET: LotteryPreset = {
   minFansMedalLevel: 0
 }
 
+const DEFAULT_GIFT_DEPOSIT: GiftDepositConfig = {
+  enabled: true,
+  rmbToCoinRate: 1000, // 1 元礼物 = 1000 哈松币（送 1 块的小心心 = 1000 币，够押 10 手默认 100）
+  includeSilver: false // 默认排除银瓜子（辣条等免费礼物），避免薅羊毛刷币
+}
+
 // 默认竞猜 preset 对照松子的两个玩法
 const DEFAULT_GUESSING: GuessingGlobalConfig = {
   currencyName: '哈松币',
   initialBalance: 1000,
+  giftDeposit: { ...DEFAULT_GIFT_DEPOSIT },
   presets: [
     {
       id: 'preset-big-red-location',
@@ -399,8 +415,20 @@ export class AppConfig {
     if (!stored) {
       return {
         ...DEFAULT_GUESSING,
+        giftDeposit: { ...DEFAULT_GIFT_DEPOSIT },
         presets: DEFAULT_GUESSING.presets.map((p) => ({ ...p, options: [...p.options] }))
       }
+    }
+    // giftDeposit 1.1 之后新增，老配置无此字段时回退默认
+    const gd = stored.giftDeposit as Partial<GiftDepositConfig> | undefined
+    const giftDeposit: GiftDepositConfig = {
+      enabled: typeof gd?.enabled === 'boolean' ? gd.enabled : DEFAULT_GIFT_DEPOSIT.enabled,
+      rmbToCoinRate:
+        typeof gd?.rmbToCoinRate === 'number' && gd.rmbToCoinRate > 0
+          ? gd.rmbToCoinRate
+          : DEFAULT_GIFT_DEPOSIT.rmbToCoinRate,
+      includeSilver:
+        typeof gd?.includeSilver === 'boolean' ? gd.includeSilver : DEFAULT_GIFT_DEPOSIT.includeSilver
     }
     return {
       currencyName: stored.currencyName || DEFAULT_GUESSING.currencyName,
@@ -408,6 +436,7 @@ export class AppConfig {
         typeof stored.initialBalance === 'number'
           ? stored.initialBalance
           : DEFAULT_GUESSING.initialBalance,
+      giftDeposit,
       presets:
         Array.isArray(stored.presets) && stored.presets.length > 0
           ? stored.presets.map((p) => ({

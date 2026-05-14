@@ -86,6 +86,7 @@ function actionLabel(kind: string): string {
   if (kind === 'overlay') return 'Overlay'
   if (kind === 'log') return '日志'
   if (kind === 'query_blindbox') return '盲盒查询'
+  if (kind === 'query_wallet') return '余额查询'
   return kind
 }
 
