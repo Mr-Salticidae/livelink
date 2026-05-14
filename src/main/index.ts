@@ -50,8 +50,13 @@ const blindboxStore = new BlindboxStore()
 const danmuOverlay = new DanmuOverlayWindow(config, bus, join(__dirname, '../renderer'))
 const lottery = new LotteryService(bus, overlayBroadcaster)
 const voting = new VotingService(bus, overlayBroadcaster)
-const horseRace = new HorseRaceService(bus, overlayBroadcaster)
 const wallet = new WalletStore()
+const horseRace = new HorseRaceService(
+  bus,
+  overlayBroadcaster,
+  wallet,
+  () => adapter.currentRoomId
+)
 const guessing = new GuessingService(
   bus,
   overlayBroadcaster,

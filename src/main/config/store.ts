@@ -48,6 +48,7 @@ export interface HorseRacePreset {
   horses: { key: string; name: string; emoji: string }[]
   enrollSec: number
   raceSec: number
+  defaultBet: number // 1.3+：弹幕只发马号不带金额时的默认押注（哈松币）
   requireAnchorFansMedal: boolean
   minFansMedalLevel: number
 }
@@ -197,6 +198,7 @@ const DEFAULT_HORSE_RACE_PRESET: HorseRacePreset = {
   ],
   enrollSec: 30,
   raceSec: 25,
+  defaultBet: 100,
   requireAnchorFansMedal: false,
   minFansMedalLevel: 0
 }
@@ -476,6 +478,11 @@ export class AppConfig {
           : [...DEFAULT_HORSE_RACE_PRESET.horses],
       enrollSec: stored.enrollSec ?? DEFAULT_HORSE_RACE_PRESET.enrollSec,
       raceSec: stored.raceSec ?? DEFAULT_HORSE_RACE_PRESET.raceSec,
+      // 1.3+ 新增字段：老 preset 无此值时回退默认 100
+      defaultBet:
+        typeof stored.defaultBet === 'number' && stored.defaultBet > 0
+          ? Math.round(stored.defaultBet)
+          : DEFAULT_HORSE_RACE_PRESET.defaultBet,
       requireAnchorFansMedal:
         stored.requireAnchorFansMedal ?? DEFAULT_HORSE_RACE_PRESET.requireAnchorFansMedal,
       minFansMedalLevel:

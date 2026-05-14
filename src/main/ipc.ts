@@ -12,6 +12,7 @@ import type { DanmuOverlayWindow } from './danmu-overlay-window'
 import type { LotteryService, LotteryConfig } from './services/lottery'
 import type { VotingService, VotingConfig } from './services/voting'
 import type { HorseRaceService, HorseRaceConfig } from './services/horse-race'
+import { setHorseRaceInitialBalanceFallback } from './services/horse-race'
 import type { GuessingService, GuessingConfig } from './services/guessing'
 import { setInitialBalanceFallback } from './services/guessing'
 import type { WalletStore } from './services/wallet-store'
@@ -292,9 +293,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     deps.getMainWindow()?.webContents.send(IpcChannels.VotingStatusUpdate, s)
   })
 
-  // ─── 赛马 ──────────────────────────────────────────────────
+  // ─── 赛马（1.3+ 接入哈松币押注） ────────────────────────────
+  // 同步 initialBalance 到 service 的 fallback（押注时首次开户用）
+  setHorseRaceInitialBalanceFallback(config.getGuessing().initialBalance)
+
   ipcMain.handle(IpcChannels.HorseRaceStart, (_e, c: HorseRaceConfig) => {
-    const r = horseRace.start(c)
+    const g = config.getGuessing()
+    setHorseRaceInitialBalanceFallback(g.initialBalance)
+    const r = horseRace.start(c, g.currencyName)
     if (!r.ok) throw new Error(r.error)
     config.setHorseRacePreset(c)
     return horseRace.getState()

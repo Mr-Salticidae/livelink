@@ -174,6 +174,7 @@ export interface HorseRaceConfig {
   horses: Horse[]
   enrollSec: number
   raceSec: number
+  defaultBet: number
   requireAnchorFansMedal: boolean
   minFansMedalLevel: number
 }
@@ -181,6 +182,11 @@ export interface HorseRanking {
   horseKey: string
   position: number
   rank: number
+}
+export interface HorseRaceWinner {
+  uname: string
+  bet: number
+  payout: number
 }
 export type HorseRaceState =
   | { phase: 'idle' }
@@ -190,6 +196,9 @@ export type HorseRaceState =
       startedAt: number
       endsAt: number
       enrollments: Record<string, number>
+      bets: Record<string, number>
+      pool: number
+      bettorCount: number
     }
   | {
       phase: 'racing'
@@ -197,6 +206,9 @@ export type HorseRaceState =
       startedAt: number
       positions: Record<string, number>
       enrollments: Record<string, number>
+      bets: Record<string, number>
+      pool: number
+      bettorCount: number
     }
   | {
       phase: 'done'
@@ -204,6 +216,10 @@ export type HorseRaceState =
       endedAt: number
       rankings: HorseRanking[]
       enrollments: Record<string, number>
+      bets: Record<string, number>
+      pool: number
+      bettorCount: number
+      winners: HorseRaceWinner[]
       winnerBettors: string[]
     }
 

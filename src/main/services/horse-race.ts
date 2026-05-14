@@ -1,20 +1,26 @@
-// 赛马互动小游戏 service
+// 赛马互动小游戏 service（1.3+ 接入哈松币押注）
 //
 // 流程：主播配置 2-8 匹马 → start() 进入 enrolling 报名阶段
-//      → 观众发"1"/"2"等弹幕选号（完全等于 horse.key）
+//      → 观众发"1"/"1 500"等弹幕选号 + 押哈松币
 //      → 报名倒计时到 → 进入 racing 阶段
-//      → 每 200ms 各匹马随机推进 + 5% 概率"加速"/"减速"
-//      → 第一匹到达终点 + 之后跑过的（含未跑完的按当前位置排）公布排名
-//      → done 状态
+//      → 每 200ms 各匹马随机推进 + 6% 加速 / 4% 失蹄
+//      → 第一匹到达终点 OR 总时长超 raceSec → 公布排名
+//      → done 状态，押中第一名按金额比例瓜分总池（沿用竞猜结算逻辑）
 //
-// 与 VotingService 区别：
-// - voting 同 uid 改投影响 totalVotes 不变；horse 同 uid 改选号 = 切换下注马
-// - voting tick 推 counts；horse racing tick 推 positions (实时位置)
-// - voting 有"赢家"；horse 有"排名 + 各马下注者列表"
+// 与 GuessingService 区别：
+// - guessing 由主播手动选赢家结算；horse 由算法跑出第一名自动结算
+// - horse racing 阶段有 200ms tick 推 positions；guessing 没有动画阶段
+//
+// 弹幕格式（与竞猜一致）：
+//   "1"        → 押 1 号马默认金额
+//   "1 500"    → 押 1 号马 500 哈松币
+//   "1,500"    → 同上
+//   "1：500"   → 同上
 
 import type { StandardEvent } from '../platform/adapter'
 import type { Bus } from '../events/bus'
 import type { OverlayBroadcaster } from '../actions/overlay'
+import type { WalletStore } from './wallet-store'
 
 export interface Horse {
   key: string // "1" / "2" / "A" 等
@@ -25,7 +31,8 @@ export interface Horse {
 export interface HorseRaceConfig {
   horses: Horse[]
   enrollSec: number // 报名时长 10-60
-  raceSec: number // 赛跑时长上限 10-30 (实际可能更短，赢家到达即结束)
+  raceSec: number // 赛跑时长上限 10-30
+  defaultBet: number // 弹幕只发马号不带金额时的默认押注（1.3+）
   requireAnchorFansMedal: boolean
   minFansMedalLevel: number
 }
@@ -36,6 +43,20 @@ export interface HorseRanking {
   rank: number // 1, 2, 3...
 }
 
+export interface HorseRaceBettor {
+  bettorKey: string
+  uid: string
+  uname: string
+  horseKey: string
+  amount: number
+}
+
+export interface HorseRaceWinner {
+  uname: string
+  bet: number
+  payout: number // 含本金返还
+}
+
 export type HorseRaceState =
   | { phase: 'idle' }
   | {
@@ -43,7 +64,10 @@ export type HorseRaceState =
       config: HorseRaceConfig
       startedAt: number
       endsAt: number
-      enrollments: Record<string, number> // horseKey → 下注人数
+      enrollments: Record<string, number> // horseKey → 押注人数
+      bets: Record<string, number> // horseKey → 累计押注金额
+      pool: number
+      bettorCount: number
     }
   | {
       phase: 'racing'
@@ -51,6 +75,9 @@ export type HorseRaceState =
       startedAt: number
       positions: Record<string, number> // horseKey → 0-100 米
       enrollments: Record<string, number>
+      bets: Record<string, number>
+      pool: number
+      bettorCount: number
     }
   | {
       phase: 'done'
@@ -58,7 +85,11 @@ export type HorseRaceState =
       endedAt: number
       rankings: HorseRanking[]
       enrollments: Record<string, number>
-      winnerBettors: string[] // 押中第一名的观众 uname 列表（最多 10）
+      bets: Record<string, number>
+      pool: number
+      bettorCount: number
+      winners: HorseRaceWinner[] // 押中第一名的观众及奖金
+      winnerBettors: string[] // 押中第一名的 uname 列表（最多 10，给老 Overlay 兼容字段）
     }
 
 const MIN_HORSES = 2
@@ -73,35 +104,49 @@ const TRACK_LENGTH = 100
 // 每 tick 基础推进 [0.4, 1.4] 米，平均 0.9 米 → ~22s 跑完 100 米
 const BASE_MIN = 0.4
 const BASE_MAX = 1.4
-const BOOST_CHANCE = 0.06 // 6% 触发加速
-const BOOST_GAIN = 5 // 加速一次 +5 米
-const STUMBLE_CHANCE = 0.04 // 4% 失蹄
-const STUMBLE_LOSS = 0 // 失蹄当 tick 不进
+const BOOST_CHANCE = 0.06
+const BOOST_GAIN = 5
+const STUMBLE_CHANCE = 0.04
+const STUMBLE_LOSS = 0
+
+// initialBalance fallback（主进程 ipc.ts 启动时 setInitialBalanceFallback 同步真值）
+let INITIAL_BALANCE_FALLBACK = 1000
+export function setHorseRaceInitialBalanceFallback(n: number): void {
+  if (Number.isFinite(n) && n >= 0) INITIAL_BALANCE_FALLBACK = n
+}
 
 export class HorseRaceService {
   private state: HorseRaceState = { phase: 'idle' }
   private bus: Bus
   private overlay: OverlayBroadcaster
+  private wallet: WalletStore
+  private getCurrentRoomId: () => number | null
+  private currencyName = '哈松币'
 
-  // 报名期间：bettorKey → horseKey（同观众后续选号覆盖）+ bettorKey → uname
-  // bettorKey 是复合 `${uid}|${uname}` 防止 B 站匿名观众 uid=0 互相覆盖
-  private bets = new Map<string, string>()
-  private bettorUname = new Map<string, string>()
+  // bettorKey → 押注详情。bettorKey 是复合 `${uid}|${uname}`（1.0.1 教训）
+  private bettors = new Map<string, HorseRaceBettor>()
 
   private enrollTimer: NodeJS.Timeout | null = null
   private raceTimer: NodeJS.Timeout | null = null
   private raceStartedAt = 0
   private unsubBus: (() => void) | null = null
 
-  // 节流推 enrollments / positions
+  // 节流推 enroll tick
   private lastTickPush = 0
   private pushTimer: NodeJS.Timeout | null = null
 
   private statusListeners = new Set<(s: HorseRaceState) => void>()
 
-  constructor(bus: Bus, overlay: OverlayBroadcaster) {
+  constructor(
+    bus: Bus,
+    overlay: OverlayBroadcaster,
+    wallet: WalletStore,
+    getCurrentRoomId: () => number | null
+  ) {
     this.bus = bus
     this.overlay = overlay
+    this.wallet = wallet
+    this.getCurrentRoomId = getCurrentRoomId
   }
 
   getState(): HorseRaceState {
@@ -118,28 +163,38 @@ export class HorseRaceService {
     }
   }
 
-  start(rawConfig: HorseRaceConfig): { ok: true } | { ok: false; error: string } {
+  start(rawConfig: HorseRaceConfig, currencyName: string): { ok: true } | { ok: false; error: string } {
     if (this.state.phase !== 'idle' && this.state.phase !== 'done') {
       return { ok: false, error: '已有进行中的赛马，先取消再开新一轮' }
+    }
+    if (this.getCurrentRoomId() == null) {
+      return { ok: false, error: '直播间未连接' }
     }
     const v = validateConfig(rawConfig)
     if (!v.ok) return v
 
     const config = v.config
+    this.currencyName = currencyName || '哈松币'
     const now = Date.now()
     const endsAt = now + config.enrollSec * 1000
 
-    this.bets.clear()
-    this.bettorUname.clear()
+    this.bettors.clear()
     const enrollments: Record<string, number> = {}
-    for (const h of config.horses) enrollments[h.key] = 0
+    const bets: Record<string, number> = {}
+    for (const h of config.horses) {
+      enrollments[h.key] = 0
+      bets[h.key] = 0
+    }
 
     this.state = {
       phase: 'enrolling',
       config,
       startedAt: now,
       endsAt,
-      enrollments
+      enrollments,
+      bets,
+      pool: 0,
+      bettorCount: 0
     }
 
     this.attachBus()
@@ -151,7 +206,12 @@ export class HorseRaceService {
       extra: {
         horses: config.horses,
         endsAt,
-        enrollments
+        enrollments,
+        bets,
+        pool: 0,
+        bettorCount: 0,
+        currencyName: this.currencyName,
+        defaultBet: config.defaultBet
       }
     })
 
@@ -174,10 +234,16 @@ export class HorseRaceService {
     if (this.state.phase === 'idle' || this.state.phase === 'done') {
       return { ok: false, error: '没有进行中的赛马' }
     }
+    const roomId = this.getCurrentRoomId()
     this.clearTimers()
     this.detachBus()
-    this.bets.clear()
-    this.bettorUname.clear()
+    // 退还所有押注（racing 阶段也允许取消退款，比赛已开但还没出结果）
+    if (roomId != null) {
+      for (const b of this.bettors.values()) {
+        this.wallet.refund(roomId, b.uid, b.uname, b.amount)
+      }
+    }
+    this.bettors.clear()
     this.state = { phase: 'idle' }
     this.overlay.broadcast({ kind: 'horserace.cancelled', event: this.fakeEvent(Date.now()) })
     this.notify()
@@ -195,7 +261,6 @@ export class HorseRaceService {
     if (this.state.phase !== 'enrolling') return
     const cur = this.state
 
-    // 报名期不再收集，但 bus 还需要保持（racing 期间忽略弹幕）
     const positions: Record<string, number> = {}
     for (const h of cur.config.horses) positions[h.key] = 0
 
@@ -205,7 +270,10 @@ export class HorseRaceService {
       config: cur.config,
       startedAt: this.raceStartedAt,
       positions,
-      enrollments: cur.enrollments
+      enrollments: cur.enrollments,
+      bets: cur.bets,
+      pool: cur.pool,
+      bettorCount: cur.bettorCount
     }
 
     this.overlay.broadcast({
@@ -215,7 +283,11 @@ export class HorseRaceService {
         horses: cur.config.horses,
         positions,
         enrollments: cur.enrollments,
-        raceSec: cur.config.raceSec
+        bets: cur.bets,
+        pool: cur.pool,
+        bettorCount: cur.bettorCount,
+        raceSec: cur.config.raceSec,
+        currencyName: this.currencyName
       }
     })
 
@@ -231,7 +303,6 @@ export class HorseRaceService {
     let anyFinished = false
     for (const h of cur.config.horses) {
       if (positions[h.key] >= TRACK_LENGTH) continue
-      // 基础推进
       let delta = BASE_MIN + Math.random() * (BASE_MAX - BASE_MIN)
       const r = Math.random()
       if (r < BOOST_CHANCE) delta += BOOST_GAIN
@@ -243,14 +314,12 @@ export class HorseRaceService {
     this.state = { ...cur, positions }
     this.notify()
 
-    // 节流推 overlay：racing 高频，200ms tick 直接每次推可以接受（10 匹马 * 5 字段 = 小数据量）
     this.overlay.broadcast({
       kind: 'horserace.tick',
       event: this.fakeEvent(Date.now()),
       extra: { positions }
     })
 
-    // 终止条件：有马到终点 OR 总时长超过 raceSec
     const elapsedSec = (Date.now() - this.raceStartedAt) / 1000
     if (anyFinished || elapsedSec >= cur.config.raceSec) {
       this.finishRace()
@@ -266,19 +335,29 @@ export class HorseRaceService {
     const cur = this.state
     this.detachBus()
 
+    const roomId = this.getCurrentRoomId()
+
     // 按 position 降序排
     const sorted = [...cur.config.horses]
       .map((h) => ({ horseKey: h.key, position: cur.positions[h.key] ?? 0 }))
       .sort((a, b) => b.position - a.position)
     const rankings: HorseRanking[] = sorted.map((s, i) => ({ ...s, rank: i + 1 }))
 
-    // 押中第一名的下注者列表（最多 10 个 uname，避免太长）
-    const winnerHorse = rankings[0].horseKey
+    const winnerHorseKey = rankings[0].horseKey
+    const winnerSidePool = cur.bets[winnerHorseKey] ?? 0
+    const totalPool = cur.pool
+
+    // 按金额比例瓜分总池（与竞猜结算一致），含本金返还。
+    // 没人押中冠军：总池流失（庄家通吃）
+    const winners: HorseRaceWinner[] = []
     const winnerBettors: string[] = []
-    for (const [bettorKey, bet] of this.bets.entries()) {
-      if (bet === winnerHorse) {
-        winnerBettors.push(this.bettorUname.get(bettorKey) ?? '观众')
-        if (winnerBettors.length >= 10) break
+    if (winnerSidePool > 0 && roomId != null) {
+      for (const b of this.bettors.values()) {
+        if (b.horseKey !== winnerHorseKey) continue
+        const payout = Math.floor((b.amount / winnerSidePool) * totalPool)
+        this.wallet.credit(roomId, b.uid, b.uname, payout)
+        winners.push({ uname: b.uname, bet: b.amount, payout })
+        if (winnerBettors.length < 10) winnerBettors.push(b.uname)
       }
     }
 
@@ -289,6 +368,10 @@ export class HorseRaceService {
       endedAt: now,
       rankings,
       enrollments: cur.enrollments,
+      bets: cur.bets,
+      pool: cur.pool,
+      bettorCount: cur.bettorCount,
+      winners,
       winnerBettors
     }
 
@@ -299,8 +382,13 @@ export class HorseRaceService {
         horses: cur.config.horses,
         rankings,
         enrollments: cur.enrollments,
+        bets: cur.bets,
+        pool: cur.pool,
+        bettorCount: cur.bettorCount,
+        winners,
         winnerBettors,
-        winnerHorseKey: winnerHorse
+        winnerHorseKey,
+        currencyName: this.currencyName
       }
     })
 
@@ -318,15 +406,14 @@ export class HorseRaceService {
   }
 
   private handleEvent(e: StandardEvent): void {
-    // 只在 enrolling 阶段接受报名，racing / done 忽略弹幕
     if (this.state.phase !== 'enrolling') return
     if (e.kind !== 'danmu.received') return
     const text = (e.payload.content ?? '').trim()
     if (!text) return
 
     const cur = this.state
-    const matched = cur.config.horses.find((h) => h.key === text)
-    if (!matched) return
+    const parsed = parseBet(text, cur.config.horses, cur.config.defaultBet)
+    if (!parsed) return
 
     const cfg = cur.config
     if (cfg.requireAnchorFansMedal || cfg.minFansMedalLevel > 0) {
@@ -336,26 +423,83 @@ export class HorseRaceService {
       if (m.level < cfg.minFansMedalLevel) return
     }
 
-    // 复合 dedupe key：B 站匿名观众 uid=0 时，单按 uid 会让所有人都被认作"同一人改投"
+    const roomId = this.getCurrentRoomId()
+    if (roomId == null) return
+
     const uname = e.user.uname || '观众'
     const bettorKey = `${e.user.uid || '0'}|${uname}`
     if (!e.user.uid && !uname) return
 
-    const prev = this.bets.get(bettorKey)
-    if (prev === matched.key) return
-    const enrollments = { ...cur.enrollments }
-    if (prev) enrollments[prev] = Math.max(0, (enrollments[prev] ?? 0) - 1)
-    enrollments[matched.key] = (enrollments[matched.key] ?? 0) + 1
-    this.bets.set(bettorKey, matched.key)
-    this.bettorUname.set(bettorKey, uname)
-    console.log(`[HorseRace] 押注: uid=${e.user.uid} uname=${uname} → ${matched.key}`)
+    const prev = this.bettors.get(bettorKey)
+    if (prev && prev.horseKey !== parsed.horseKey) {
+      // 改选号：退还之前的押注，押新的
+      this.wallet.refund(roomId, e.user.uid, uname, prev.amount)
+      const bets = { ...cur.bets }
+      const enrollments = { ...cur.enrollments }
+      bets[prev.horseKey] = Math.max(0, (bets[prev.horseKey] ?? 0) - prev.amount)
+      enrollments[prev.horseKey] = Math.max(0, (enrollments[prev.horseKey] ?? 0) - 1)
+      this.state = {
+        ...cur,
+        bets,
+        enrollments,
+        pool: cur.pool - prev.amount,
+        bettorCount: Math.max(0, cur.bettorCount - 1)
+      }
+      this.bettors.delete(bettorKey)
+    }
 
-    this.state = { ...cur, enrollments }
+    const actualDeducted = this.wallet.deduct(
+      roomId,
+      e.user.uid,
+      uname,
+      parsed.amount,
+      INITIAL_BALANCE_FALLBACK
+    )
+    if (actualDeducted <= 0) {
+      console.log(`[HorseRace] ${uname} 余额不足，本次押注 ${parsed.amount} 失败`)
+      return
+    }
+
+    const existing = this.bettors.get(bettorKey)
+    if (existing) {
+      // 同号追加
+      existing.amount += actualDeducted
+    } else {
+      this.bettors.set(bettorKey, {
+        bettorKey,
+        uid: e.user.uid || '0',
+        uname,
+        horseKey: parsed.horseKey,
+        amount: actualDeducted
+      })
+    }
+
+    const curState = this.state
+    if (curState.phase !== 'enrolling') return
+    const bets = { ...curState.bets }
+    const enrollments = { ...curState.enrollments }
+    bets[parsed.horseKey] = (bets[parsed.horseKey] ?? 0) + actualDeducted
+    if (!existing) {
+      enrollments[parsed.horseKey] = (enrollments[parsed.horseKey] ?? 0) + 1
+    }
+    this.state = {
+      ...curState,
+      bets,
+      enrollments,
+      pool: curState.pool + actualDeducted,
+      bettorCount: this.bettors.size
+    }
+
+    console.log(
+      `[HorseRace] ${uname} 押 ${parsed.horseKey} ${actualDeducted}` +
+        `（请求 ${parsed.amount}）· 池 ${this.state.pool}`
+    )
+
     this.notify()
     this.scheduleEnrollPush()
   }
 
-  /** 报名期间 enrollments 变化节流推 overlay (300ms) */
+  /** 报名期间 enroll tick 节流推 overlay (300ms) */
   private scheduleEnrollPush(): void {
     const now = Date.now()
     const elapsed = now - this.lastTickPush
@@ -379,7 +523,12 @@ export class HorseRaceService {
     this.overlay.broadcast({
       kind: 'horserace.enroll-tick',
       event: this.fakeEvent(Date.now()),
-      extra: { enrollments: this.state.enrollments }
+      extra: {
+        enrollments: this.state.enrollments,
+        bets: this.state.bets,
+        pool: this.state.pool,
+        bettorCount: this.state.bettorCount
+      }
     })
   }
 
@@ -411,8 +560,7 @@ export class HorseRaceService {
   dispose(): void {
     this.clearTimers()
     this.detachBus()
-    this.bets.clear()
-    this.bettorUname.clear()
+    this.bettors.clear()
     this.state = { phase: 'idle' }
   }
 }
@@ -439,6 +587,7 @@ function validateConfig(
   if (!Number.isFinite(c.raceSec) || c.raceSec < MIN_RACE || c.raceSec > MAX_RACE) {
     return { ok: false, error: `赛跑时长要在 ${MIN_RACE}-${MAX_RACE} 秒之间` }
   }
+  const defaultBet = Math.max(1, Math.round(c.defaultBet ?? 100))
 
   return {
     ok: true,
@@ -446,8 +595,38 @@ function validateConfig(
       horses,
       enrollSec: Math.round(c.enrollSec),
       raceSec: Math.round(c.raceSec),
+      defaultBet,
       requireAnchorFansMedal: Boolean(c.requireAnchorFansMedal),
       minFansMedalLevel: Math.max(0, Math.min(40, Math.round(c.minFansMedalLevel ?? 0)))
     }
   }
+}
+
+/**
+ * 解析弹幕押注。返回 null 表示这条弹幕不是有效押注。
+ * key 必须严格等于 horse.key（避免"1 万"被识别成"1"）
+ * 与 guessing.parseBet 几乎相同，结构维持一致
+ */
+function parseBet(
+  text: string,
+  horses: Horse[],
+  defaultBet: number
+): { horseKey: string; amount: number } | null {
+  const parts = text.split(/[\s,，：:]+/).filter((p) => p.length > 0)
+  if (parts.length === 0) return null
+
+  const key = parts[0]
+  const matched = horses.find((h) => h.key === key)
+  if (!matched) return null
+
+  let amount = defaultBet
+  if (parts.length >= 2) {
+    const n = Number(parts[1])
+    if (Number.isFinite(n) && n > 0) {
+      amount = Math.floor(n)
+    }
+  }
+  amount = Math.max(1, Math.min(100000, amount))
+
+  return { horseKey: matched.key, amount }
 }

@@ -1,11 +1,17 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
 interface Horse { key: string; name: string; emoji: string }
 interface Ranking { horseKey: string; position: number; rank: number }
+interface Winner { uname: string; bet: number; payout: number }
 
 const props = defineProps<{
   horses: Horse[]
   rankings: Ranking[]
   enrollments: Record<string, number>
+  winners: Winner[]
+  pool: number
+  currencyName: string
   winnerBettors: string[]
   winnerHorseKey: string | null
 }>()
@@ -15,6 +21,10 @@ const MEDALS = ['🥇', '🥈', '🥉']
 function findHorse(key: string): Horse | undefined {
   return props.horses.find((h) => h.key === key)
 }
+
+// 押中冠军详细分账（最多 5 条，多了挤）
+const topWinners = computed(() => props.winners.slice(0, 5))
+const moreWinners = computed(() => Math.max(0, props.winners.length - topWinners.value.length))
 </script>
 
 <template>
@@ -22,6 +32,7 @@ function findHorse(key: string): Horse | undefined {
     <div class="hrr-card">
       <header class="hrr-header">
         <span class="hrr-title">🏆 赛马结果</span>
+        <span class="hrr-pool">总池 {{ pool }} {{ currencyName }}</span>
       </header>
 
       <div class="hrr-rankings">
@@ -39,13 +50,30 @@ function findHorse(key: string): Horse | undefined {
         </div>
       </div>
 
-      <div v-if="winnerBettors.length > 0" class="hrr-bettors">
+      <!-- 押中冠军详细分账 -->
+      <div v-if="topWinners.length > 0" class="hrr-winners">
+        <div class="hrr-winners-title">押中冠军 · 按金额比例瓜分</div>
+        <div
+          v-for="(w, i) in topWinners"
+          :key="i"
+          class="hrr-winner"
+        >
+          <span class="hrr-winner-name">{{ w.uname }}</span>
+          <span class="hrr-winner-payout">
+            押 {{ w.bet }} → <strong>+{{ w.payout }}</strong>
+          </span>
+        </div>
+        <div v-if="moreWinners > 0" class="hrr-winners-more">
+          + 另 {{ moreWinners }} 人
+        </div>
+      </div>
+      <div v-else-if="winnerBettors.length > 0" class="hrr-bettors">
         <div class="hrr-bettors-title">押中冠军：</div>
         <div class="hrr-bettors-list">
           <span v-for="(b, i) in winnerBettors" :key="i" class="hrr-bettor">{{ b }}</span>
         </div>
       </div>
-      <div v-else class="hrr-bettors-empty">没有人押中冠军</div>
+      <div v-else class="hrr-bettors-empty">没有人押中冠军，总池流失</div>
     </div>
   </div>
 </template>
@@ -70,11 +98,20 @@ function findHorse(key: string): Horse | undefined {
   border-bottom: 1px dashed rgba(252, 211, 77, 0.3);
   padding-bottom: 0.5rem;
   margin-bottom: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
 }
 .hrr-title {
   font-size: 1.1rem;
   font-weight: 700;
   color: #fcd34d;
+}
+.hrr-pool {
+  font-size: 0.78rem;
+  color: #fde68a;
+  font-variant-numeric: tabular-nums;
 }
 
 .hrr-rankings {
@@ -129,6 +166,39 @@ function findHorse(key: string): Horse | undefined {
   font-size: 0.85rem;
   color: #94a3b8;
   padding: 6px;
+}
+
+.hrr-winners {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hrr-winners-title {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+.hrr-winner {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  padding: 2px 0;
+}
+.hrr-winner-name { color: #fef3c7; }
+.hrr-winner-payout {
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+.hrr-winner-payout strong { color: #34d399; font-weight: 700; }
+.hrr-winners-more {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-align: right;
+  margin-top: 2px;
 }
 
 @keyframes hrrIn {

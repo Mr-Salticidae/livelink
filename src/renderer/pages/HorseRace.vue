@@ -12,9 +12,11 @@ const form = ref<HorseRaceConfig>({
   ],
   enrollSec: 30,
   raceSec: 25,
+  defaultBet: 100,
   requireAnchorFansMedal: false,
   minFansMedalLevel: 0
 })
+const currencyName = ref('哈松币')
 const submitting = ref(false)
 const error = ref<string | null>(null)
 
@@ -24,6 +26,9 @@ onMounted(async () => {
   try {
     const preset = await window.api.horseRaceGetPreset()
     if (preset) form.value = preset
+    // 沿用竞猜的全局货币名（赛马和竞猜共用钱包）
+    const g = await window.api.guessingGetConfig()
+    currencyName.value = g.currencyName || '哈松币'
   } catch (err) {
     console.error('horseRaceGetPreset failed', err)
   }
@@ -102,6 +107,11 @@ function enrollOf(h: Horse): number {
   if (s.phase !== 'enrolling' && s.phase !== 'racing' && s.phase !== 'done') return 0
   return s.enrollments[h.key] ?? 0
 }
+function betOf(h: Horse): number {
+  const s = horseRaceState.value
+  if (s.phase !== 'enrolling' && s.phase !== 'racing' && s.phase !== 'done') return 0
+  return s.bets[h.key] ?? 0
+}
 function positionOf(h: Horse): number {
   const s = horseRaceState.value
   if (s.phase !== 'racing') return 0
@@ -126,7 +136,7 @@ const winnerHorse = computed(() => {
     <header>
       <h1 class="text-2xl font-semibold">赛马</h1>
       <p class="mt-1 text-sm text-slate-400">
-        2-8 匹马 → 观众弹幕选号报名 → 随机赛跑动画 → 公布排名 + 押中第一名的观众名单
+        2-8 匹马 → 观众弹幕押<strong class="text-amber-300">{{ currencyName }}</strong>选号 → 随机赛跑 → 押中第一名按金额比例瓜分总池
       </p>
     </header>
 
@@ -182,7 +192,7 @@ const winnerHorse = computed(() => {
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-3 gap-3">
         <label class="text-xs text-slate-400">
           报名时长（10-60 秒）
           <input
@@ -199,6 +209,22 @@ const winnerHorse = computed(() => {
             class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
           />
         </label>
+        <label class="text-xs text-slate-400">
+          默认押注金额
+          <input
+            v-model.number="form.defaultBet"
+            type="number" min="1"
+            class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
+          />
+        </label>
+      </div>
+
+      <!-- 弹幕格式说明 -->
+      <div class="rounded-lg bg-slate-950/40 p-3 text-xs text-slate-400 space-y-1">
+        <div class="text-slate-300 font-medium">观众怎么押注？</div>
+        <div>· 发马号（例 <code class="text-amber-300">1</code>）→ 押 {{ form.defaultBet }} {{ currencyName }}</div>
+        <div>· 发 <code class="text-amber-300">马号 金额</code>（例 <code class="text-amber-300">1 500</code>）→ 押指定金额</div>
+        <div>· 改选号 = 退还前面的，押新的；同号追加 = 累加</div>
       </div>
 
       <div class="space-y-2 rounded-lg bg-slate-950/40 p-3">
@@ -233,10 +259,13 @@ const winnerHorse = computed(() => {
       <div class="flex items-start justify-between gap-3">
         <div>
           <h2 class="text-sm font-medium text-amber-200">🏁 报名进行中</h2>
-          <div class="mt-1 text-xs text-slate-400">观众发马号（如"1"/"2"）选号报名，同 uid 改投覆盖</div>
+          <div class="mt-1 text-xs text-slate-400">弹幕发"马号"或"马号 金额"押注，同人改号自动退款重押</div>
         </div>
         <div class="text-right shrink-0">
           <div class="text-3xl font-bold text-amber-300 tabular-nums">{{ remainingEnrollSec }}s</div>
+          <div class="text-xs text-slate-500 mt-0.5">
+            池 <strong class="text-slate-200">{{ horseRaceState.pool }}</strong> {{ currencyName }} · {{ horseRaceState.bettorCount }} 人
+          </div>
         </div>
       </div>
 
@@ -251,7 +280,9 @@ const winnerHorse = computed(() => {
             <code class="bg-slate-950 px-1.5 py-0.5 rounded text-xs">{{ h.key }}</code>
             <span class="text-sm text-slate-200">{{ h.name }}</span>
           </div>
-          <span class="text-xs text-slate-400">押 <strong class="text-amber-300">{{ enrollOf(h) }}</strong> 人</span>
+          <span class="text-xs text-slate-400 tabular-nums">
+            {{ enrollOf(h) }} 人 · <strong class="text-amber-300">{{ betOf(h) }}</strong> {{ currencyName }}
+          </span>
         </div>
       </div>
 
@@ -259,7 +290,7 @@ const winnerHorse = computed(() => {
         <button
           @click="cancelRace"
           class="rounded bg-slate-700 px-4 py-1.5 text-xs text-slate-100 hover:bg-slate-600"
-        >取消</button>
+        >取消（退款）</button>
         <button
           @click="startRaceNow"
           class="rounded bg-amber-500 px-4 py-1.5 text-xs font-medium text-slate-900 hover:bg-amber-400"
@@ -328,19 +359,25 @@ const winnerHorse = computed(() => {
             <span class="text-sm text-slate-200">{{ h.name }}</span>
             <span v-if="rankOf(h) === 1" class="text-emerald-300 text-xs">★ 冠军</span>
           </div>
-          <span class="text-xs text-slate-400">押 {{ enrollOf(h) }} 人</span>
+          <span class="text-xs text-slate-400 tabular-nums">{{ enrollOf(h) }} 人 · {{ betOf(h) }} {{ currencyName }}</span>
         </div>
       </div>
 
-      <!-- 中奖（押中第一名）观众 -->
-      <div v-if="horseRaceState.winnerBettors.length > 0" class="rounded-lg bg-slate-950/40 p-3">
-        <div class="text-xs text-slate-400 mb-2">押中冠军的观众（最多 10 人）</div>
-        <div class="flex flex-wrap gap-1.5">
-          <span
-            v-for="(b, i) in horseRaceState.winnerBettors"
-            :key="i"
-            class="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs text-emerald-200"
-          >{{ b }}</span>
+      <!-- 押中冠军的详细分账（含奖金） -->
+      <div v-if="horseRaceState.winners.length === 0" class="rounded-lg bg-slate-950/40 p-4 text-center text-sm text-slate-500">
+        没人押中冠军，{{ horseRaceState.pool }} {{ currencyName }} 流失（庄家通吃）
+      </div>
+      <div v-else class="space-y-1.5">
+        <div class="text-xs text-slate-400">押中冠军的观众（按金额比例分配总池）：</div>
+        <div
+          v-for="(w, i) in horseRaceState.winners"
+          :key="i"
+          class="flex items-center justify-between rounded-lg bg-slate-950/40 px-3 py-2"
+        >
+          <span class="text-sm text-slate-200">{{ w.uname }}</span>
+          <span class="text-xs text-slate-400 tabular-nums">
+            押 {{ w.bet }} → 拿 <strong class="text-emerald-300">{{ w.payout }}</strong> {{ currencyName }}
+          </span>
         </div>
       </div>
     </section>

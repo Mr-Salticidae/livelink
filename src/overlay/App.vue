@@ -122,10 +122,16 @@ interface GuessingResult {
 
 interface HorseDef { key: string; name: string; emoji: string }
 interface HorseRanking { horseKey: string; position: number; rank: number }
+interface HorseRaceWinner { uname: string; bet: number; payout: number }
 interface HorseRaceActive {
   phase: 'enrolling' | 'racing'
   horses: HorseDef[]
   enrollments: Record<string, number>
+  bets: Record<string, number>
+  pool: number
+  bettorCount: number
+  currencyName: string
+  defaultBet: number
   positions: Record<string, number>
   endsAt?: number
 }
@@ -134,6 +140,9 @@ interface HorseRaceResult {
   horses: HorseDef[]
   rankings: HorseRanking[]
   enrollments: Record<string, number>
+  winners: HorseRaceWinner[]
+  pool: number
+  currencyName: string
   winnerBettors: string[]
   winnerHorseKey: string | null
 }
@@ -456,7 +465,16 @@ onMounted(() => {
   // 赛马
   on<OverlayPayload>('horserace.enroll-start', (msg) => {
     const x = msg.extra as
-      | { horses?: HorseDef[]; endsAt?: number; enrollments?: Record<string, number> }
+      | {
+          horses?: HorseDef[]
+          endsAt?: number
+          enrollments?: Record<string, number>
+          bets?: Record<string, number>
+          pool?: number
+          bettorCount?: number
+          currencyName?: string
+          defaultBet?: number
+        }
       | undefined
     if (!x?.endsAt || !Array.isArray(x?.horses)) return
     activeHorseRaceResult.value = null
@@ -464,6 +482,11 @@ onMounted(() => {
       phase: 'enrolling',
       horses: x.horses,
       enrollments: x.enrollments ?? {},
+      bets: x.bets ?? {},
+      pool: x.pool ?? 0,
+      bettorCount: x.bettorCount ?? 0,
+      currencyName: x.currencyName ?? '哈松币',
+      defaultBet: x.defaultBet ?? 100,
       positions: {},
       endsAt: x.endsAt
     }
@@ -475,9 +498,22 @@ onMounted(() => {
     })
   })
   on<OverlayPayload>('horserace.enroll-tick', (msg) => {
-    const x = msg.extra as { enrollments?: Record<string, number> } | undefined
-    if (!activeHorseRace.value || activeHorseRace.value.phase !== 'enrolling' || !x?.enrollments) return
-    activeHorseRace.value = { ...activeHorseRace.value, enrollments: x.enrollments }
+    const x = msg.extra as
+      | {
+          enrollments?: Record<string, number>
+          bets?: Record<string, number>
+          pool?: number
+          bettorCount?: number
+        }
+      | undefined
+    if (!activeHorseRace.value || activeHorseRace.value.phase !== 'enrolling' || !x) return
+    activeHorseRace.value = {
+      ...activeHorseRace.value,
+      enrollments: x.enrollments ?? activeHorseRace.value.enrollments,
+      bets: x.bets ?? activeHorseRace.value.bets,
+      pool: x.pool ?? activeHorseRace.value.pool,
+      bettorCount: x.bettorCount ?? activeHorseRace.value.bettorCount
+    }
   })
   on<OverlayPayload>('horserace.race-start', (msg) => {
     const x = msg.extra as
@@ -485,6 +521,10 @@ onMounted(() => {
           horses?: HorseDef[]
           positions?: Record<string, number>
           enrollments?: Record<string, number>
+          bets?: Record<string, number>
+          pool?: number
+          bettorCount?: number
+          currencyName?: string
         }
       | undefined
     if (!Array.isArray(x?.horses)) return
@@ -492,6 +532,11 @@ onMounted(() => {
       phase: 'racing',
       horses: x.horses,
       enrollments: x.enrollments ?? activeHorseRace.value?.enrollments ?? {},
+      bets: x.bets ?? activeHorseRace.value?.bets ?? {},
+      pool: x.pool ?? activeHorseRace.value?.pool ?? 0,
+      bettorCount: x.bettorCount ?? activeHorseRace.value?.bettorCount ?? 0,
+      currencyName: x.currencyName ?? activeHorseRace.value?.currencyName ?? '哈松币',
+      defaultBet: activeHorseRace.value?.defaultBet ?? 100,
       positions: x.positions ?? {}
     }
   })
@@ -506,6 +551,10 @@ onMounted(() => {
           horses?: HorseDef[]
           rankings?: HorseRanking[]
           enrollments?: Record<string, number>
+          bets?: Record<string, number>
+          pool?: number
+          currencyName?: string
+          winners?: HorseRaceWinner[]
           winnerBettors?: string[]
           winnerHorseKey?: string | null
         }
@@ -517,12 +566,15 @@ onMounted(() => {
       horses: x.horses,
       rankings: x.rankings,
       enrollments: x.enrollments ?? {},
+      winners: x.winners ?? [],
+      pool: x.pool ?? 0,
+      currencyName: x.currencyName ?? '哈松币',
       winnerBettors: x.winnerBettors ?? [],
       winnerHorseKey: x.winnerHorseKey ?? null
     }
     activeHorseRaceResult.value = result
     // 有押中冠军的观众才庆祝（冷场不撒彩）
-    if (result.winnerBettors.length > 0) triggerCelebration()
+    if (result.winners.length > 0 || result.winnerBettors.length > 0) triggerCelebration()
     window.setTimeout(() => {
       if (activeHorseRaceResult.value?.id === result.id) activeHorseRaceResult.value = null
     }, HORSE_RESULT_MS)
@@ -865,6 +917,11 @@ onMounted(() => {
         :phase="activeHorseRace.phase"
         :horses="activeHorseRace.horses"
         :enrollments="activeHorseRace.enrollments"
+        :bets="activeHorseRace.bets"
+        :pool="activeHorseRace.pool"
+        :bettor-count="activeHorseRace.bettorCount"
+        :currency-name="activeHorseRace.currencyName"
+        :default-bet="activeHorseRace.defaultBet"
         :positions="activeHorseRace.positions"
         :ends-at="activeHorseRace.endsAt"
       />
@@ -880,6 +937,9 @@ onMounted(() => {
         :horses="activeHorseRaceResult.horses"
         :rankings="activeHorseRaceResult.rankings"
         :enrollments="activeHorseRaceResult.enrollments"
+        :winners="activeHorseRaceResult.winners"
+        :pool="activeHorseRaceResult.pool"
+        :currency-name="activeHorseRaceResult.currencyName"
         :winner-bettors="activeHorseRaceResult.winnerBettors"
         :winner-horse-key="activeHorseRaceResult.winnerHorseKey"
       />

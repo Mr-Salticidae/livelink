@@ -15,6 +15,11 @@ const props = defineProps<{
   phase: 'enrolling' | 'racing'
   horses: Horse[]
   enrollments: Record<string, number>
+  bets: Record<string, number>
+  pool: number
+  bettorCount: number
+  currencyName: string
+  defaultBet: number
   positions: Record<string, number> // 赛跑阶段才有数据
   endsAt?: number // 仅 enrolling
 }>()
@@ -32,6 +37,9 @@ const isUrgent = computed(() => remainingSec.value <= 5 && remainingSec.value > 
 function enrollOf(h: Horse): number {
   return props.enrollments[h.key] ?? 0
 }
+function betOf(h: Horse): number {
+  return props.bets[h.key] ?? 0
+}
 function positionOf(h: Horse): number {
   return Math.min(100, Math.max(0, props.positions[h.key] ?? 0))
 }
@@ -46,13 +54,20 @@ function positionOf(h: Horse): number {
           <span class="hr-badge">🏁 赛马报名中</span>
           <span class="hr-countdown" :class="{ urgent: isUrgent }">{{ remainingSec }}s</span>
         </header>
-        <p class="hr-hint">弹幕发"<code>1</code>" "<code>2</code>" 等马号 → 押注</p>
+        <div class="hr-pool">
+          总池 <strong>{{ pool }}</strong> {{ currencyName }} · {{ bettorCount }} 人押注
+        </div>
+        <p class="hr-hint">
+          弹幕发<code>马号</code>押 {{ defaultBet }}，<code>马号 金额</code>押指定金额
+        </p>
         <div class="hr-list">
           <div v-for="h in horses" :key="h.key" class="hr-list-row">
             <span class="hr-emoji">{{ h.emoji }}</span>
             <span class="hr-key">{{ h.key }}</span>
             <span class="hr-name">{{ h.name }}</span>
-            <span class="hr-count">押 {{ enrollOf(h) }}</span>
+            <span class="hr-count">
+              {{ enrollOf(h) }} 人 · <strong>{{ betOf(h) }}</strong>
+            </span>
           </div>
         </div>
       </template>
@@ -74,7 +89,7 @@ function positionOf(h: Horse): number {
             <div class="hr-track-meta">
               <span class="hr-key-small">{{ h.key }}</span>
               <span class="hr-name-small">{{ h.name }}</span>
-              <span class="hr-count-small">押 {{ enrollOf(h) }}</span>
+              <span class="hr-count-small">{{ enrollOf(h) }} 人 · {{ betOf(h) }} {{ currencyName }}</span>
             </div>
           </div>
         </div>
@@ -126,6 +141,16 @@ function positionOf(h: Horse): number {
   color: #94a3b8;
   font-size: 0.85rem;
 }
+.hr-pool {
+  font-size: 0.85rem;
+  color: #fde68a;
+  margin: 0.1rem 0 0.45rem;
+}
+.hr-pool strong {
+  color: #fcd34d;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
 .hr-hint {
   font-size: 0.78rem;
   color: #fde68a;
@@ -165,6 +190,7 @@ function positionOf(h: Horse): number {
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
 }
+.hr-count strong { color: #fcd34d; font-weight: 700; }
 
 /* racing 赛道 */
 .hr-tracks { display: flex; flex-direction: column; gap: 8px; }
