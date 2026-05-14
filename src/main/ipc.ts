@@ -5,7 +5,7 @@ import type { RuleEngine } from './rules/engine'
 import { TTSPlayer, VOICE_OPTIONS, type TTSConfig } from './actions/tts'
 import type { OverlayServer } from './overlay-server/server'
 import type { OverlayController } from './overlay-controller'
-import type { AppConfig, BilibiliAuth, DanmuBoardConfig } from './config/store'
+import type { AppConfig, BilibiliAuth, DanmuBoardConfig, GameCardConfig } from './config/store'
 import type { LogSink, LogEntry } from './actions/log'
 import type { Rule } from './rules/types'
 import type { DanmuOverlayWindow } from './danmu-overlay-window'
@@ -219,6 +219,24 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     overlayServer.broadcast({
       kind: 'danmu.board.config',
       // 占位 event 不被 overlay 端使用，仅为 OverlayMessage schema 满足
+      event: {
+        kind: 'viewer.enter',
+        platform: 'bilibili',
+        timestamp: Date.now(),
+        user: { uid: '0', uname: '' },
+        payload: {}
+      },
+      extra: { ...next }
+    })
+    return next
+  })
+
+  // ─── 游戏卡片位置（抽奖 / 投票 / 竞猜 / 赛马 共用） ────────────
+  ipcMain.handle(IpcChannels.GameCardGet, () => config.getGameCard())
+  ipcMain.handle(IpcChannels.GameCardPatch, (_e, patch: Partial<GameCardConfig>) => {
+    const next = config.patchGameCard(patch)
+    overlayServer.broadcast({
+      kind: 'gamecard.config',
       event: {
         kind: 'viewer.enter',
         platform: 'bilibili',

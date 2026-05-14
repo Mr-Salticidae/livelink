@@ -15,7 +15,9 @@ import {
   toggleDanmuOverlay,
   toggleDanmuOverlayPin,
   danmuBoard,
-  patchDanmuBoard
+  patchDanmuBoard,
+  gameCard,
+  patchGameCard
 } from '../store'
 import type { Rule } from '../types'
 
@@ -50,6 +52,45 @@ function startDragBoard(e: MouseEvent): void {
   }
   const up = (): void => {
     dragging.value = false
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+}
+
+// 游戏卡片（抽奖 / 投票 / 竞猜 / 赛马）位置的拖动逻辑。卡片宽约 460-580px，
+// 在 1920px 直播屏上 ≈ 24-30%，按 30% 宽 + 36% 高估算预览块尺寸 / clamp
+const GAME_CARD_PREVIEW_W = 30
+const GAME_CARD_PREVIEW_H = 36
+const GAME_CARD_PRESETS: { value: { x: number; y: number }; label: string }[] = [
+  { value: { x: 35, y: 4 }, label: '上中' },
+  { value: { x: 35, y: 32 }, label: '正中' },
+  { value: { x: 2, y: 32 }, label: '左中' },
+  { value: { x: 68, y: 32 }, label: '右中' }
+]
+const gameCardPreviewRef = ref<HTMLDivElement | null>(null)
+const draggingGameCard = ref(false)
+function startDragGameCard(e: MouseEvent): void {
+  if (!gameCardPreviewRef.value) return
+  draggingGameCard.value = true
+  e.preventDefault()
+  const update = (evt: MouseEvent): void => {
+    const rect = gameCardPreviewRef.value!.getBoundingClientRect()
+    const x = ((evt.clientX - rect.left) / rect.width) * 100
+    const y = ((evt.clientY - rect.top) / rect.height) * 100
+    // 卡片溢出限制：左上角不能超过 100 - 预览块尺寸
+    const clampedX = Math.max(0, Math.min(100 - GAME_CARD_PREVIEW_W, x))
+    const clampedY = Math.max(0, Math.min(100 - GAME_CARD_PREVIEW_H, y))
+    patchGameCard({ position: { x: Math.round(clampedX), y: Math.round(clampedY) } })
+  }
+  update(e)
+  const move = (evt: MouseEvent): void => {
+    if (!draggingGameCard.value) return
+    update(evt)
+  }
+  const up = (): void => {
+    draggingGameCard.value = false
     window.removeEventListener('mousemove', move)
     window.removeEventListener('mouseup', up)
   }
@@ -348,6 +389,68 @@ async function copyOverlayUrl(): Promise<void> {
 
         <p class="text-[11px] text-slate-500 leading-relaxed">
           配置改后 OBS 浏览器源自动刷新，不用手动重载源。
+        </p>
+      </div>
+    </section>
+
+    <!-- 游戏卡片位置（抽奖 / 投票 / 竞猜 / 赛马 共享） -->
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
+      <div class="min-w-0">
+        <h2 class="text-sm font-medium text-slate-300">游戏卡片位置</h2>
+        <p class="mt-1 text-xs text-slate-500">
+          抽奖 / 投票 / 竞猜 / 赛马 的进行中卡 + 结果卡共用一个位置（这几个玩法运行时互斥）。
+          拖动预览框里的方块改位置，OBS 浏览器源会实时刷新。
+        </p>
+      </div>
+
+      <div class="space-y-3 rounded-lg bg-slate-950/40 p-3">
+        <label class="text-xs text-slate-400">
+          位置（拖动预览框里的方块到任意位置，或点 4 个预设）
+        </label>
+        <!-- 16:9 拖动预览框 -->
+        <div
+          ref="gameCardPreviewRef"
+          class="relative aspect-video w-full rounded-lg border border-slate-700 bg-gradient-to-br from-slate-800/60 to-slate-950 cursor-crosshair select-none overflow-hidden"
+          :class="draggingGameCard ? 'border-amber-400' : ''"
+          @mousedown="startDragGameCard"
+        >
+          <!-- 屏幕中心十字辅助线 -->
+          <div class="absolute inset-0 pointer-events-none">
+            <div class="absolute left-1/2 top-0 bottom-0 border-l border-slate-700/40"></div>
+            <div class="absolute top-1/2 left-0 right-0 border-t border-slate-700/40"></div>
+          </div>
+          <!-- 游戏卡片缩略图 -->
+          <div
+            class="absolute rounded bg-amber-500/30 border border-amber-400/80 shadow-lg pointer-events-none transition-all duration-100 flex items-center justify-center"
+            :style="{
+              left: gameCard.position.x + '%',
+              top: gameCard.position.y + '%',
+              width: GAME_CARD_PREVIEW_W + '%',
+              height: GAME_CARD_PREVIEW_H + '%'
+            }"
+          >
+            <div class="text-[9px] text-amber-100 text-center font-medium leading-tight">
+              游戏卡片<br/>（抽奖/投票/竞猜/赛马）
+            </div>
+          </div>
+          <!-- 当前位置坐标 -->
+          <div class="absolute right-1.5 bottom-1.5 text-[9px] text-slate-400 font-mono bg-slate-950/60 px-1.5 rounded">
+            x: {{ gameCard.position.x }}% · y: {{ gameCard.position.y }}%
+          </div>
+        </div>
+
+        <!-- 快捷预设 -->
+        <div class="grid grid-cols-4 gap-1">
+          <button
+            v-for="p in GAME_CARD_PRESETS"
+            :key="p.label"
+            @click="patchGameCard({ position: p.value })"
+            class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-600 transition"
+          >{{ p.label }}</button>
+        </div>
+
+        <p class="text-[11px] text-slate-500 leading-relaxed">
+          预览框里的方块是粗略示意——真实卡片宽度会随玩法浮动 460-580px（≈ 24-30% 直播屏宽）。
         </p>
       </div>
     </section>

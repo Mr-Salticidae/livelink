@@ -3,6 +3,7 @@ import type {
   BilibiliAuth,
   ConnectionStatus,
   DanmuBoardConfig,
+  GameCardConfig,
   GuessingState,
   HorseRaceState,
   LogEntry,
@@ -37,6 +38,9 @@ export const danmuBoard = ref<DanmuBoardConfig>({
   maxLines: 10,
   fontSize: 16,
   showGift: true
+})
+export const gameCard = ref<GameCardConfig>({
+  position: { x: 35, y: 24 }
 })
 
 export type PageKey =
@@ -137,6 +141,13 @@ export async function loadInitialData(): Promise<void> {
   } catch (err) {
     console.error('getDanmuBoard failed', err)
   }
+
+  // 游戏卡片位置初始化
+  try {
+    gameCard.value = await api.getGameCard()
+  } catch (err) {
+    console.error('getGameCard failed', err)
+  }
 }
 
 export async function patchDanmuBoard(patch: Partial<DanmuBoardConfig>): Promise<void> {
@@ -144,6 +155,14 @@ export async function patchDanmuBoard(patch: Partial<DanmuBoardConfig>): Promise
     danmuBoard.value = await window.api.patchDanmuBoard(patch)
   } catch (err) {
     console.error('patchDanmuBoard failed', err)
+  }
+}
+
+export async function patchGameCard(patch: Partial<GameCardConfig>): Promise<void> {
+  try {
+    gameCard.value = await window.api.patchGameCard(patch)
+  } catch (err) {
+    console.error('patchGameCard failed', err)
   }
 }
 

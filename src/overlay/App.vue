@@ -28,6 +28,11 @@ interface BoardConfig {
   showGift: boolean
 }
 
+interface GameCardPosition { x: number; y: number }
+interface GameCardConfig {
+  position: GameCardPosition
+}
+
 interface GiftItem {
   id: string
   uname: string
@@ -248,6 +253,13 @@ const danmuBoardRef = ref<InstanceType<typeof DanmuBoard> | null>(null)
 // 板子左上角的百分比定位。直接 left/top %，板子宽 360px，主播负责拖到不溢出位置
 const boardPosStyle = computed(() => {
   const p = danmuBoardConfig.value.position
+  return { left: `${p.x}%`, top: `${p.y}%` }
+})
+
+// 游戏卡片位置（抽奖 / 投票 / 竞猜 / 赛马 共用）。主进程通过 gamecard.config 推送
+const gameCardConfig = ref<GameCardConfig>({ position: { x: 35, y: 24 } })
+const gameCardPosStyle = computed(() => {
+  const p = gameCardConfig.value.position
   return { left: `${p.x}%`, top: `${p.y}%` }
 })
 
@@ -727,6 +739,13 @@ onMounted(() => {
     danmuBoardConfig.value = { ...danmuBoardConfig.value, ...x }
   })
 
+  // 游戏卡片位置推送（启动 / Home 页改位置时 push）
+  on<OverlayPayload>('gamecard.config', (msg) => {
+    const x = msg.extra as Partial<GameCardConfig> | undefined
+    if (!x || !x.position) return
+    gameCardConfig.value = { position: { ...gameCardConfig.value.position, ...x.position } }
+  })
+
   // OBS 弹幕信息板：每条弹幕 / 礼物（仅 enabled 时主进程才推）
   on<OverlayPayload>('danmu.board.item', (msg) => {
     const ev = msg.event
@@ -807,10 +826,11 @@ onMounted(() => {
       />
     </div>
 
-    <!-- 屏幕中央抽奖进行中卡 -->
+    <!-- 抽奖进行中卡（位置由 Home 拖动配置） -->
     <div
       v-if="activeLottery"
-      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      class="absolute"
+      :style="gameCardPosStyle"
     >
       <LotteryCard
         :prize="activeLottery.prize"
@@ -821,10 +841,11 @@ onMounted(() => {
       />
     </div>
 
-    <!-- 屏幕中央抽奖结果卡 -->
+    <!-- 抽奖结果卡（位置由 Home 拖动配置） -->
     <div
       v-if="activeLotteryResult"
-      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      class="absolute"
+      :style="gameCardPosStyle"
     >
       <LotteryResultCard
         :key="activeLotteryResult.id"
@@ -873,10 +894,11 @@ onMounted(() => {
       />
     </div>
 
-    <!-- 竞猜进行中 / 买定离手卡（屏幕中央偏上） -->
+    <!-- 竞猜进行中 / 买定离手卡（位置由 Home 拖动配置） -->
     <div
       v-if="activeGuessing"
-      class="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2"
+      class="absolute"
+      :style="gameCardPosStyle"
     >
       <GuessingCard
         :phase="activeGuessing.phase"
@@ -891,10 +913,11 @@ onMounted(() => {
       />
     </div>
 
-    <!-- 竞猜结果卡（屏幕中央） -->
+    <!-- 竞猜结果卡（位置由 Home 拖动配置） -->
     <div
       v-if="activeGuessingResult"
-      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      class="absolute"
+      :style="gameCardPosStyle"
     >
       <GuessingResultCard
         :key="activeGuessingResult.id"
@@ -908,10 +931,11 @@ onMounted(() => {
       />
     </div>
 
-    <!-- 赛马进行中（报名 + 比赛同位置） -->
+    <!-- 赛马进行中（报名 + 比赛同位置；位置由 Home 拖动配置） -->
     <div
       v-if="activeHorseRace"
-      class="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2"
+      class="absolute"
+      :style="gameCardPosStyle"
     >
       <HorseRaceCard
         :phase="activeHorseRace.phase"
@@ -927,10 +951,11 @@ onMounted(() => {
       />
     </div>
 
-    <!-- 赛马结果卡（屏幕中央） -->
+    <!-- 赛马结果卡（位置由 Home 拖动配置） -->
     <div
       v-if="activeHorseRaceResult"
-      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      class="absolute"
+      :style="gameCardPosStyle"
     >
       <HorseRaceResultCard
         :key="activeHorseRaceResult.id"
@@ -945,10 +970,11 @@ onMounted(() => {
       />
     </div>
 
-    <!-- 投票进行中卡片（屏幕中央偏上） -->
+    <!-- 投票进行中卡片（位置由 Home 拖动配置） -->
     <div
       v-if="activeVoting"
-      class="absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2"
+      class="absolute"
+      :style="gameCardPosStyle"
     >
       <VotingCard
         :title="activeVoting.title"
@@ -959,10 +985,11 @@ onMounted(() => {
       />
     </div>
 
-    <!-- 投票结果卡（屏幕中央） -->
+    <!-- 投票结果卡（位置由 Home 拖动配置） -->
     <div
       v-if="activeVotingResult"
-      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      class="absolute"
+      :style="gameCardPosStyle"
     >
       <VotingResultCard
         :key="activeVotingResult.id"

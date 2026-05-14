@@ -100,6 +100,11 @@ const api = {
   patchDanmuBoard: (patch: Record<string, unknown>) =>
     ipcRenderer.invoke(IpcChannels.DanmuBoardPatch, cleanForIpc(patch)),
 
+  // 游戏卡片位置
+  getGameCard: () => ipcRenderer.invoke(IpcChannels.GameCardGet),
+  patchGameCard: (patch: Record<string, unknown>) =>
+    ipcRenderer.invoke(IpcChannels.GameCardPatch, cleanForIpc(patch)),
+
   // 弹幕抽奖
   lotteryStart: (config: unknown) =>
     ipcRenderer.invoke(IpcChannels.LotteryStart, cleanForIpc(config)),

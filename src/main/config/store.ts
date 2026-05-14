@@ -96,6 +96,17 @@ const LEGACY_POSITION_MAP: Record<string, DanmuBoardPosition> = {
   'bottom-right': { x: 80, y: 76 }
 }
 
+// 游戏卡片（抽奖 / 投票 / 竞猜 / 赛马 进行中 + 结果卡）位置。
+// 这几个玩法运行期互斥（同一时间最多一个），共享同一个位置即可，
+// 主播在 Home 页用同一个预览框拖到任意位置。{ x, y } 是卡片左上角百分比。
+export interface GameCardPosition {
+  x: number // 0-100 (%)
+  y: number // 0-100 (%)
+}
+export interface GameCardConfig {
+  position: GameCardPosition
+}
+
 // 弹幕悬浮窗（主播全屏游戏时瞟弹幕用）
 export interface DanmuOverlayConfig {
   enabled: boolean // 启动时是否自动打开（持久化记忆）
@@ -114,6 +125,7 @@ export interface AppConfigSchema {
   auth: { bilibili: BilibiliAuth }
   danmuOverlay: DanmuOverlayConfig
   danmuBoard: DanmuBoardConfig
+  gameCard: GameCardConfig
   lottery: LotteryPreset
   voting: VotingPreset
   horseRace: HorseRacePreset
@@ -134,6 +146,12 @@ const DEFAULT_DANMU_BOARD: DanmuBoardConfig = {
   maxLines: 10,
   fontSize: 16,
   showGift: true
+}
+
+// 游戏卡片默认位置：上中（≈ 老版本 left-1/2 top-[42%] -translate-x/y-1/2 的视觉位置）
+// 卡片宽 460-580px ≈ 25-30% 屏幕，按典型 30% 估算居中：左上角 (35, 24)
+const DEFAULT_GAME_CARD: GameCardConfig = {
+  position: { x: 35, y: 24 }
 }
 
 const DEFAULT_LOTTERY_PRESET: LotteryPreset = {
@@ -224,6 +242,7 @@ const defaults: AppConfigSchema = {
   auth: { bilibili: { sessdata: '', uid: '', buvid: '' } },
   danmuOverlay: { ...DEFAULT_DANMU_OVERLAY },
   danmuBoard: { ...DEFAULT_DANMU_BOARD },
+  gameCard: { position: { ...DEFAULT_GAME_CARD.position } },
   lottery: { ...DEFAULT_LOTTERY_PRESET },
   voting: { ...DEFAULT_VOTING_PRESET },
   horseRace: { ...DEFAULT_HORSE_RACE_PRESET, horses: [...DEFAULT_HORSE_RACE_PRESET.horses] },
@@ -409,6 +428,40 @@ export class AppConfig {
     const next: DanmuBoardConfig = { ...this.getDanmuBoard(), ...patch }
     this.setDanmuBoard(next)
     return this.getDanmuBoard() // 返回 clamp 后的值
+  }
+
+  // 游戏卡片位置（抽奖 / 投票 / 竞猜 / 赛马 共用一个位置）
+  getGameCard(): GameCardConfig {
+    const stored = this.store.get('gameCard') as GameCardConfig | undefined
+    if (!stored || !stored.position) {
+      return { position: { ...DEFAULT_GAME_CARD.position } }
+    }
+    const p = stored.position
+    return {
+      position: {
+        x: clampPercent(typeof p.x === 'number' ? p.x : DEFAULT_GAME_CARD.position.x),
+        y: clampPercent(typeof p.y === 'number' ? p.y : DEFAULT_GAME_CARD.position.y)
+      }
+    }
+  }
+  setGameCard(cfg: GameCardConfig): void {
+    const safe: GameCardConfig = {
+      position: {
+        x: clampPercent(cfg.position?.x ?? DEFAULT_GAME_CARD.position.x),
+        y: clampPercent(cfg.position?.y ?? DEFAULT_GAME_CARD.position.y)
+      }
+    }
+    this.store.set('gameCard', safe)
+  }
+  patchGameCard(patch: Partial<GameCardConfig>): GameCardConfig {
+    const current = this.getGameCard()
+    const next: GameCardConfig = {
+      position: patch.position
+        ? { ...current.position, ...patch.position }
+        : current.position
+    }
+    this.setGameCard(next)
+    return this.getGameCard()
   }
 
   // 竞猜（全局货币 + preset 列表）

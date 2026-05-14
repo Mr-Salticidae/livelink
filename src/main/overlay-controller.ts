@@ -32,16 +32,23 @@ export class OverlayController {
         // 新 OBS 浏览器源连上时，立即把当前 danmu board config 发过去。
         // 否则浏览器源刚加载，没收到 patch broadcast，无法判断 enabled / 位置等
         onSocketConnect: (socket) => {
+          const placeholderEvent = {
+            kind: 'viewer.enter',
+            platform: 'bilibili',
+            timestamp: Date.now(),
+            user: { uid: '0', uname: '' },
+            payload: {}
+          }
           socket.emit('danmu.board.config', {
             kind: 'danmu.board.config',
-            event: {
-              kind: 'viewer.enter',
-              platform: 'bilibili',
-              timestamp: Date.now(),
-              user: { uid: '0', uname: '' },
-              payload: {}
-            },
+            event: placeholderEvent,
             extra: { ...this.config.getDanmuBoard() }
+          })
+          // 游戏卡片位置同样需要在新浏览器源接入时立即同步
+          socket.emit('gamecard.config', {
+            kind: 'gamecard.config',
+            event: placeholderEvent,
+            extra: { ...this.config.getGameCard() }
           })
         }
       })

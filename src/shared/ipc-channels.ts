@@ -47,6 +47,11 @@ export const IpcChannels = {
   DanmuBoardPatch: 'danmu-board:patch',
   DanmuBoardConfigPush: 'danmu-board:config-push', // 主→overlay namespace 推送 settings 变更
 
+  // 游戏卡片位置（抽奖 / 投票 / 竞猜 / 赛马 共用，主播 Home 页拖动）
+  GameCardGet: 'game-card:get',
+  GameCardPatch: 'game-card:patch',
+  GameCardConfigPush: 'game-card:config-push', // 主→overlay namespace 推送位置变更
+
   // 弹幕抽奖
   LotteryStart: 'lottery:start',
   LotteryCancel: 'lottery:cancel',

@@ -90,6 +90,15 @@ export interface DanmuBoardConfig {
   showGift: boolean
 }
 
+// 游戏卡片位置（抽奖 / 投票 / 竞猜 / 赛马 共用一个坐标，进行中 + 结果卡都用这个位置）
+export interface GameCardPosition {
+  x: number
+  y: number
+}
+export interface GameCardConfig {
+  position: GameCardPosition
+}
+
 // 竞猜
 export interface GuessingOption {
   key: string
@@ -333,6 +342,10 @@ export interface ApiSurface {
   // OBS 弹幕信息板
   getDanmuBoard: () => Promise<DanmuBoardConfig>
   patchDanmuBoard: (patch: Partial<DanmuBoardConfig>) => Promise<DanmuBoardConfig>
+
+  // 游戏卡片位置
+  getGameCard: () => Promise<GameCardConfig>
+  patchGameCard: (patch: Partial<GameCardConfig>) => Promise<GameCardConfig>
 
   // 弹幕抽奖
   lotteryStart: (config: LotteryConfig) => Promise<LotteryState>
