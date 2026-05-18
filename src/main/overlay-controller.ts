@@ -9,6 +9,10 @@ export class OverlayController {
   private fatalError: string | null = null
   private retrying = false
   private onChange: () => void = () => {}
+  // 本次进程启动的唯一标识。app 每次重启（=可能出了新版本）都会变。
+  // 下发给 overlay 端，它发现 bootId 变了就自动 location.reload()，
+  // 配合 HTML no-store，OBS 浏览器源无需手动改 URL 即可拿到新包。
+  private readonly bootId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
   constructor(
     private server: OverlayServer,
@@ -30,19 +34,27 @@ export class OverlayController {
         preferredPort: this.config.getOverlayPort(),
         giftService: this.giftServiceGetter() ?? undefined,
         // 新 OBS 浏览器源连上时，立即把当前 danmu board config 发过去。
-        // 否则浏览器源刚加载，没收到 patch broadcast，无法判断 enabled / 位置等
+        // 否则浏览器源刚加载，没收到 patch broadcast，无法判断 enabled / 位置等。
+        // 另注册 'danmu.board.config:request'：overlay 端挂载 / 重连后主动拉一次，
+        // 兜底「连接早于监听器注册导致首发丢失」——这是开了板子却不显示的主因
         onSocketConnect: (socket) => {
-          socket.emit('danmu.board.config', {
-            kind: 'danmu.board.config',
-            event: {
-              kind: 'viewer.enter',
-              platform: 'bilibili',
-              timestamp: Date.now(),
-              user: { uid: '0', uname: '' },
-              payload: {}
-            },
-            extra: { ...this.config.getDanmuBoard() }
-          })
+          const pushConfig = (): void => {
+            socket.emit('danmu.board.config', {
+              kind: 'danmu.board.config',
+              event: {
+                kind: 'viewer.enter',
+                platform: 'bilibili',
+                timestamp: Date.now(),
+                user: { uid: '0', uname: '' },
+                payload: {}
+              },
+              extra: { ...this.config.getDanmuBoard() }
+            })
+            // bootId 随同一可靠通道下发（connect + 端侧 request 兜底）
+            socket.emit('overlay.hello', { bootId: this.bootId })
+          }
+          pushConfig()
+          socket.on('danmu.board.config:request', pushConfig)
         }
       })
       this.config.setOverlayPort(port)

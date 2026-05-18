@@ -3,7 +3,7 @@
 // 风格：简洁清新——半透明深色 + 浅字 + backdrop blur，新弹幕从底部滑入，
 // FIFO 超过 maxLines 丢最早
 
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 interface BoardItem {
   id: string
@@ -20,7 +20,13 @@ interface BoardItem {
 const props = defineProps<{
   maxLines: number
   fontSize: number
+  debugMs?: number | null
 }>()
+
+// 仅当 overlay URL 带 ?debug=1 才显示延迟读数，正常直播不受影响
+const showDebug = computed(
+  () => new URLSearchParams(window.location.search).get('debug') === '1'
+)
 
 const items = ref<BoardItem[]>([])
 const scrollEl = ref<HTMLDivElement | null>(null)
@@ -49,7 +55,22 @@ defineExpose({ push, clear: () => (items.value = []) })
 
 <template>
   <div class="board" :style="{ '--font-size': fontSize + 'px' }">
+    <Teleport to="body">
+      <div
+        v-if="showDebug"
+        class="debug-badge"
+        :class="{
+          warn: debugMs != null && debugMs >= 1000,
+          ok: debugMs != null && debugMs < 1000
+        }"
+      >
+        延迟 {{ debugMs == null ? '—' : debugMs + 'ms' }}
+      </div>
+    </Teleport>
     <div ref="scrollEl" class="scroll">
+      <!-- 还没弹幕时给个占位，主播开板后能立刻确认它在工作；
+           一旦有弹幕进来这行自然消失，不打扰观众 -->
+      <div v-if="items.length === 0" class="placeholder">弹幕区 · 等待弹幕…</div>
       <div
         v-for="i in items"
         :key="i.id"
@@ -77,18 +98,21 @@ defineExpose({ push, clear: () => (items.value = []) })
 
 <style scoped>
 .board {
-  /* 容器：固定宽度，高度由内容决定。简洁清新 = 半透明深底 + 浅字 + 圆角 + blur */
+  /* 容器：固定宽度，高度由内容决定。
+     注意：刻意不用 backdrop-filter blur —— 它在 OBS 的 CEF 浏览器源里要每帧
+     重采样背景视频，是常驻元素时开销巨大，直播编码抢 CPU 时会把 socket 事件
+     拖慢堆积，表现为弹幕板严重延迟。改用稍实的半透明纯底 + 文字阴影保证可读。 */
+  position: relative;
   width: 360px;
   max-height: 80vh;
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(15, 23, 42, 0.72);
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 14px;
   padding: 10px 12px;
   color: #f1f5f9;
   font-size: var(--font-size, 16px);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 8px 32px -10px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 6px 20px -10px rgba(0, 0, 0, 0.4);
 }
 .scroll {
   max-height: 72vh;
@@ -97,6 +121,32 @@ defineExpose({ push, clear: () => (items.value = []) })
   scrollbar-width: none;
 }
 .scroll::-webkit-scrollbar { display: none; }
+
+.debug-badge {
+  /* 钉死在屏幕左上角，与板子位置无关——板子可能被拖到屏幕边缘外，
+     贴板子的话徽章会跟着跑出可视区。仅 ?debug=1 出现 */
+  position: fixed;
+  top: 6px;
+  left: 6px;
+  z-index: 9999;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.92);
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+}
+.debug-badge.ok { color: #4ade80; }
+.debug-badge.warn { color: #f87171; }
+
+.placeholder {
+  color: #94a3b8;
+  font-size: 0.85em;
+  text-align: center;
+  padding: 6px 0;
+  opacity: 0.7;
+}
 
 .line {
   line-height: 1.5;

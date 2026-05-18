@@ -39,8 +39,9 @@ function startDragBoard(e: MouseEvent): void {
     // 鼠标点击位置作为板子左上角；x/y 百分比
     const x = ((evt.clientX - rect.left) / rect.width) * 100
     const y = ((evt.clientY - rect.top) / rect.height) * 100
-    const clampedX = Math.max(0, Math.min(82, x)) // 板子宽 18%，82 之后会溢出
-    const clampedY = Math.max(0, Math.min(82, y))
+    // overlay 端用自身尺寸反向位移定位，0-100 全程都不溢出，这里允许满量程
+    const clampedX = Math.max(0, Math.min(100, x))
+    const clampedY = Math.max(0, Math.min(100, y))
     patchDanmuBoard({ position: { x: Math.round(clampedX), y: Math.round(clampedY) } })
   }
   update(e) // 点击位置立即跳到那里
@@ -293,6 +294,7 @@ async function copyOverlayUrl(): Promise<void> {
               :style="{
                 left: danmuBoard.position.x + '%',
                 top: danmuBoard.position.y + '%',
+                transform: `translate(-${danmuBoard.position.x}%, -${danmuBoard.position.y}%)`,
                 width: '18%',
                 height: '22%'
               }"

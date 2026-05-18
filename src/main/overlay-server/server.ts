@@ -71,12 +71,24 @@ export class OverlayServer {
       app.use('/assets', express.static(assetsPath, { fallthrough: true, maxAge: 0 }))
     }
 
-    // 主入口：/ 和 /overlay 都返回 overlay 单页
+    // 主入口：/ 和 /overlay 都返回 overlay 单页。
+    // 关键：HTML 永不缓存（no-store）。OBS 的 CEF 浏览器源缓存极顽固，
+    // 若缓存了旧 HTML 就会一直引用旧版 JS（旧包没有最新逻辑 → 板子不出现等）。
+    // index.html 体积极小，且 vite 产物的 JS 文件名带 hash，
+    // 只要 HTML 每次重新拉，新构建会自动引用新 hash 包，无需手动加 ?v= 破缓存。
     const sendOverlay = (_req: express.Request, res: express.Response): void => {
       if (existsSync(overlayHtmlPath)) {
-        res.sendFile(overlayHtmlPath)
+        // cacheControl:false 让 send 库不要写它默认的 max-age=0；
+        // 关掉 etag/lastModified，避免 CEF 用 304 复活旧 HTML
+        res.sendFile(overlayHtmlPath, {
+          cacheControl: false,
+          etag: false,
+          lastModified: false,
+          headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' }
+        })
         return
       }
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
       res
         .status(503)
         .type('html')

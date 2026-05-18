@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { on } from './socket'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { on, socket } from './socket'
 import type { OverlayPayload } from './types'
 import GiftEffect from './components/GiftEffect.vue'
 import ViewerEnterBanner from './components/ViewerEnterBanner.vue'
@@ -245,10 +245,45 @@ const danmuBoardConfig = ref<BoardConfig>({
   showGift: true
 })
 const danmuBoardRef = ref<InstanceType<typeof DanmuBoard> | null>(null)
-// 板子左上角的百分比定位。直接 left/top %，板子宽 360px，主播负责拖到不溢出位置
+// 最近一条弹幕的「发出→收到」延迟 ms，仅 ?debug=1 时在板子角落显示
+const boardLatencyMs = ref<number | null>(null)
+
+// 弹幕板缓冲：item 事件可能在 DanmuBoard 还没挂载（enabled 刚 true / ref 未绑定）时到达，
+// 直接 push 会被丢 → 观众看不到新弹幕。先入缓冲，板子就绪后按序补放。
+type BoardPushItem = Parameters<NonNullable<typeof danmuBoardRef.value>['push']>[0]
+const boardBuffer: BoardPushItem[] = []
+function pushToBoard(item: BoardPushItem): void {
+  const board = danmuBoardRef.value
+  if (board) {
+    board.push(item)
+    return
+  }
+  boardBuffer.push(item)
+  if (boardBuffer.length > 200) boardBuffer.splice(0, boardBuffer.length - 200)
+}
+function flushBoardBuffer(): void {
+  const board = danmuBoardRef.value
+  if (!board || boardBuffer.length === 0) return
+  for (const it of boardBuffer) board.push(it)
+  boardBuffer.length = 0
+}
+// 板子被开启 → 等组件挂载完再把缓冲补上
+watch(
+  () => danmuBoardConfig.value.enabled,
+  (en) => {
+    if (en) void nextTick(flushBoardBuffer)
+  }
+)
+// 板子定位：锚点放在视口 (x%, y%)，再按板子「自身尺寸」反向位移同样的百分比。
+// transform translate 的 % 是相对元素自身算的，所以 x=0 贴左、x=100 贴右、
+// x=50 水平居中——任何分辨率、任何板子尺寸都保证整块永远在屏幕内，不会被边缘切。
 const boardPosStyle = computed(() => {
   const p = danmuBoardConfig.value.position
-  return { left: `${p.x}%`, top: `${p.y}%` }
+  return {
+    left: `${p.x}%`,
+    top: `${p.y}%`,
+    transform: `translate(${-p.x}%, ${-p.y}%)`
+  }
 })
 
 const uid = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -755,8 +790,31 @@ onMounted(() => {
       const p = ev.payload as { content?: string }
       item.content = p?.content ?? ''
     }
-    danmuBoardRef.value?.push(item)
+    // ?debug=1 时测「主进程发出 → 此刻收到」延迟（同机时钟）
+    const sentAt = (msg.extra as { sentAt?: number } | undefined)?.sentAt
+    if (typeof sentAt === 'number') boardLatencyMs.value = Date.now() - sentAt
+    pushToBoard(item)
   })
+
+  // 自动重载：服务端每次进程启动有新 bootId。第一次记下，之后发现变了
+  // （= app 重启 / 出了新版本）就刷新自己。配合 HTML no-store，
+  // OBS 浏览器源 URL 固定不变也能自动拿到新包，不用再手动加 ?v=
+  let seenBootId: string | null = null
+  on<{ bootId?: string }>('overlay.hello', (m) => {
+    const id = m?.bootId
+    if (!id) return
+    if (seenBootId === null) {
+      seenBootId = id
+      return
+    }
+    if (id !== seenBootId) window.location.reload()
+  })
+
+  // 主动拉一次板子配置：socket 在模块加载时就建连，可能早于上面 on() 注册完成，
+  // 导致服务端「连上即推」的首发 config 丢失 → 开了板子却一直不显示。
+  // 挂载后 + 每次（重）连上都请求一次，确保 enabled / 位置一定同步过来
+  socket.emit('danmu.board.config:request')
+  socket.on('connect', () => socket.emit('danmu.board.config:request'))
 })
 </script>
 
@@ -857,6 +915,7 @@ onMounted(() => {
         ref="danmuBoardRef"
         :max-lines="danmuBoardConfig.maxLines"
         :font-size="danmuBoardConfig.fontSize"
+        :debug-ms="boardLatencyMs"
       />
     </div>
 

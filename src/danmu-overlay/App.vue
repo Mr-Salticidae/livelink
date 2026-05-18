@@ -83,7 +83,7 @@ onBeforeUnmount(() => {
   <div
     class="danmu-window"
     :class="{ pinned }"
-    :style="{ '--opacity': settings.opacity, '--font-size': settings.fontSize + 'px' }"
+    :style="{ '--font-size': settings.fontSize + 'px' }"
   >
     <!-- 标题栏：未钉住时可拖动；钉住后只剩图钉按钮可点 -->
     <header class="title-bar" :class="{ 'title-bar-pinned': pinned }">
@@ -109,7 +109,7 @@ onBeforeUnmount(() => {
       <div
         v-for="i in items"
         :key="i.id"
-        class="line"
+        class="line text-outline"
         :class="{ 'line-gift': i.kind === 'gift' }"
       >
         <span v-if="i.guardLevel && i.guardLevel > 0" class="badge badge-guard">舰</span>
@@ -129,65 +129,73 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* 完全透明设计：窗口本身不画任何背景 / 边框 / 模糊，BrowserWindow 已是
+   transparent:true，所以游戏画面 100% 透出，弹幕窗不再挡视野。
+   可读性靠每条文字的深色描边阴影（text-shadow 模拟 outline），
+   不依赖任何底色——这样无论游戏画面亮暗都能看清。 */
 .danmu-window {
   width: 100vw;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  /* 1.0.2 恢复半透明：rgba(15,23,42, var(--opacity, 0.85)) 配合
-     BrowserWindow transparent:true，让游戏画面透过弹幕窗能看到。
-     opacity 默认 0.85，主播可在主窗未来加滑条调（暂未暴露 UI） */
-  background: rgba(15, 23, 42, var(--opacity, 0.85));
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 8px;
+  background: transparent;
   color: #e2e8f0;
   font-size: var(--font-size, 14px);
   overflow: hidden;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+}
+
+/* 文字描边：四向 + 外发光的多层 text-shadow，等效一圈黑边，
+   亮背景（雪地 / 白图）也能读 */
+.text-outline {
+  text-shadow:
+    0 0 2px rgba(0, 0, 0, 0.95),
+    0 0 4px rgba(0, 0, 0, 0.9),
+    1px 1px 2px rgba(0, 0, 0, 0.95),
+    -1px -1px 2px rgba(0, 0, 0, 0.85),
+    1px -1px 2px rgba(0, 0, 0, 0.85),
+    -1px 1px 2px rgba(0, 0, 0, 0.85);
 }
 
 .title-bar {
-  /* 整条标题栏作为拖动区。pin / close 按钮用 no-drag 排除 */
+  /* 整条标题栏作为拖动区。pin / close 按钮用 no-drag 排除。
+     背景透明，平时控件半隐；鼠标移到窗口上才显形，不抢视觉 */
   -webkit-app-region: drag;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 28px;
-  padding: 0 6px 0 12px;
-  background: rgba(2, 6, 23, 0.5);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  height: 24px;
+  padding: 0 4px 0 8px;
+  background: transparent;
   flex-shrink: 0;
   user-select: none;
+  opacity: 0.28;
+  transition: opacity 0.18s ease;
 }
+.danmu-window:hover .title-bar { opacity: 1; }
 .title-bar-pinned {
-  /* 钉住时整条标题栏不可拖动（即便整个 BrowserWindow.setMovable(false) 也已禁用，但 CSS 也明确表达） */
   -webkit-app-region: no-drag;
-  background: rgba(217, 119, 6, 0.18);
-  border-bottom-color: rgba(245, 158, 11, 0.35);
+  /* 钉住时标题栏常驻可见（提醒鼠标穿透中），不再依赖 hover */
+  opacity: 0.9;
 }
 .title {
-  font-size: 12px;
-  color: #94a3b8;
+  font-size: 11px;
+  color: #cbd5e1;
   letter-spacing: 0.04em;
-  /* 窗口缩到最小时禁止换行，超出用省略号。flex:1 + min-width:0 让 title 在剩余空间内伸缩 */
   flex: 1;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
-.pinned-hint { color: #fbbf24; font-weight: 500; }
+.pinned-hint { color: #fbbf24; font-weight: 600; opacity: 1; }
 .watched {
-  /* 在线人数徽章：标题栏中段，不随标题伸缩 */
   flex-shrink: 0;
   margin: 0 6px;
-  padding: 1px 6px;
   font-size: 11px;
   color: #7dd3fc;
-  background: rgba(56, 189, 248, 0.12);
-  border-radius: 10px;
   white-space: nowrap;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
 .title-buttons {
   display: flex;
@@ -198,106 +206,98 @@ onBeforeUnmount(() => {
 .pin-btn,
 .close-btn {
   -webkit-app-region: no-drag;
-  background: transparent;
+  background: rgba(2, 6, 23, 0.45);
   border: none;
-  color: #cbd5e1;
+  color: #e2e8f0;
   line-height: 1;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 18px;
   border-radius: 4px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.pin-btn { font-size: 13px; }
-.close-btn { font-size: 18px; }
-.pin-btn:hover { background: rgba(148, 163, 184, 0.2); }
+.pin-btn { font-size: 12px; }
+.close-btn { font-size: 16px; }
+.pin-btn:hover { background: rgba(148, 163, 184, 0.45); }
 .close-btn:hover {
-  background: rgba(244, 63, 94, 0.3);
+  background: rgba(244, 63, 94, 0.6);
   color: white;
-}
-/* 钉住时窗口轻微金色边框提示 */
-.danmu-window.pinned {
-  border-color: rgba(245, 158, 11, 0.5);
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.18);
 }
 
 .scroll-area {
   flex: 1;
   overflow-y: auto;
-  padding: 6px 10px 8px 10px;
+  padding: 4px 8px 8px 8px;
 }
-.scroll-area::-webkit-scrollbar { width: 6px; }
-.scroll-area::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 3px; }
+/* 滚动条透明，不画轨道，仅在 hover 时微现 */
+.scroll-area::-webkit-scrollbar { width: 5px; }
+.scroll-area::-webkit-scrollbar-track { background: transparent; }
+.scroll-area::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+.danmu-window:hover .scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+}
 
 .empty {
-  color: #64748b;
+  color: #cbd5e1;
   text-align: center;
   padding-top: 30px;
   font-size: 0.9em;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
 
 .line {
-  line-height: 1.45;
+  line-height: 1.5;
   word-break: break-word;
-  padding: 2px 6px;
-  margin: 0 -6px;
-  border-radius: 4px;
-  /* 新弹幕进场动画：黄色高亮 → 2.4s 内淡出到无背景。
-     forwards 保留终态（透明），避免动画结束后回到 50% 状态 */
-  animation: lineHighlight 2.4s ease-out forwards;
+  padding: 1px 0;
+  /* 进场只用淡入 + 轻微上移，无任何背景色块（不挡视野）。
+     forwards 保留终态（完全显示） */
+  animation: lineIn 0.35s ease-out forwards;
 }
-.line + .line { margin-top: 1px; }
+.line + .line { margin-top: 2px; }
 
-@keyframes lineHighlight {
-  0% { background-color: rgba(253, 224, 71, 0.55); }   /* amber-300 ~55% */
-  20% { background-color: rgba(253, 224, 71, 0.45); }
-  100% { background-color: rgba(253, 224, 71, 0); }
-}
-/* 礼物高亮用金色更暖 */
-.line-gift {
-  animation: giftLineHighlight 2.4s ease-out forwards;
-}
-@keyframes giftLineHighlight {
-  0% { background-color: rgba(251, 191, 36, 0.6); }
-  20% { background-color: rgba(251, 191, 36, 0.5); }
-  100% { background-color: rgba(251, 191, 36, 0); }
+@keyframes lineIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .uname {
   color: #7dd3fc;
-  font-weight: 500;
+  font-weight: 700;
 }
-.sep { color: #64748b; margin-right: 2px; }
-.content { color: #e2e8f0; }
+.sep { color: #cbd5e1; margin-right: 2px; }
+.content { color: #f8fafc; font-weight: 500; }
 
 .line-gift .content {
-  color: #fde68a;
+  color: #fde047;
+  font-weight: 700;
 }
 .line-gift .num {
   color: #fcd34d;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .badge {
   display: inline-block;
-  font-size: 0.75em;
+  font-size: 0.72em;
   padding: 0 4px;
   margin-right: 4px;
   border-radius: 3px;
   vertical-align: 1px;
+  font-weight: 700;
+  /* 徽章保留小色块（信息密度高、面积小，不挡视野），但加描边防糊 */
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
 }
 .badge-guard {
   background: linear-gradient(135deg, #fbbf24, #f59e0b);
   color: #422006;
-  font-weight: 600;
 }
 .badge-fan {
-  background: rgba(56, 189, 248, 0.25);
-  color: #7dd3fc;
-  font-weight: 600;
+  background: rgba(37, 99, 235, 0.92);
+  color: #ffffff;
   min-width: 16px;
   text-align: center;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
 }
 </style>
