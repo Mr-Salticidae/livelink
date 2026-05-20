@@ -46,6 +46,7 @@ export const IpcChannels = {
   DanmuBoardGet: 'danmu-board:get',
   DanmuBoardPatch: 'danmu-board:patch',
   DanmuBoardConfigPush: 'danmu-board:config-push', // 主→overlay namespace 推送 settings 变更
+  DanmuBoardSetPreviewFull: 'danmu-board:set-preview-full', // 渲染→主：装修预览模式（OBS 板子塞满假弹幕显示满载效果）
 
   // 弹幕抽奖
   LotteryStart: 'lottery:start',

@@ -215,20 +215,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IpcChannels.DanmuBoardGet, () => config.getDanmuBoard())
   ipcMain.handle(IpcChannels.DanmuBoardPatch, (_e, patch: Partial<DanmuBoardConfig>) => {
     const next = config.patchDanmuBoard(patch)
-    // 配置变更后推到 overlay namespace 让所有 OBS 浏览器源实时刷新
-    overlayServer.broadcast({
-      kind: 'danmu.board.config',
-      // 占位 event 不被 overlay 端使用，仅为 OverlayMessage schema 满足
-      event: {
-        kind: 'viewer.enter',
-        platform: 'bilibili',
-        timestamp: Date.now(),
-        user: { uid: '0', uname: '' },
-        payload: {}
-      },
-      extra: { ...next }
-    })
+    // 经 controller 广播（带上 editing 瞬时标记），所有 OBS 浏览器源实时刷新
+    overlayController.notifyBoardConfigChanged()
     return next
+  })
+  // 装修预览模式（OBS 板子装满假弹幕显示满载效果，用于直播间装修对齐）
+  ipcMain.handle(IpcChannels.DanmuBoardSetPreviewFull, (_e, on: boolean) => {
+    overlayController.setPreviewFull(Boolean(on))
+    return { previewFull: overlayController.isPreviewFull() }
   })
 
   // ─── 弹幕抽奖 ──────────────────────────────────────────────

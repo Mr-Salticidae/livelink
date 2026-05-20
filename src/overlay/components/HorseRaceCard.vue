@@ -40,6 +40,11 @@ function enrollOf(h: Horse): number {
 function betOf(h: Horse): number {
   return props.bets[h.key] ?? 0
 }
+// 该马押注额占总池百分比（实时反映赔率热度）
+function betPct(h: Horse): number {
+  if (!props.pool || props.pool <= 0) return 0
+  return Math.round((betOf(h) / props.pool) * 100)
+}
 function positionOf(h: Horse): number {
   return Math.min(100, Math.max(0, props.positions[h.key] ?? 0))
 }
@@ -62,12 +67,17 @@ function positionOf(h: Horse): number {
         </p>
         <div class="hr-list">
           <div v-for="h in horses" :key="h.key" class="hr-list-row">
-            <span class="hr-emoji">{{ h.emoji }}</span>
-            <span class="hr-key">{{ h.key }}</span>
-            <span class="hr-name">{{ h.name }}</span>
-            <span class="hr-count">
-              {{ enrollOf(h) }} 人 · <strong>{{ betOf(h) }}</strong>
-            </span>
+            <div class="hr-row-top">
+              <span class="hr-emoji">{{ h.emoji }}</span>
+              <span class="hr-key">{{ h.key }}</span>
+              <span class="hr-name">{{ h.name }}</span>
+              <span class="hr-count">
+                {{ enrollOf(h) }} 人 · <strong>{{ betOf(h) }}</strong> · {{ betPct(h) }}%
+              </span>
+            </div>
+            <div class="hr-bar-track">
+              <div class="hr-bar-fill" :style="{ width: betPct(h) + '%' }"></div>
+            </div>
           </div>
         </div>
       </template>
@@ -167,11 +177,28 @@ function positionOf(h: Horse): number {
 .hr-list { display: flex; flex-direction: column; gap: 6px; }
 .hr-list-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
   background: rgba(0, 0, 0, 0.3);
   border-radius: 8px;
-  padding: 5px 10px;
+  padding: 6px 10px;
+}
+.hr-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hr-bar-track {
+  height: 9px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+.hr-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #d97706, #fbbf24);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.5);
 }
 .hr-emoji { font-size: 1.4rem; }
 .hr-key {

@@ -26,6 +26,9 @@ interface BoardConfig {
   maxLines: number
   fontSize: number
   showGift: boolean
+  width: number
+  maxHeightPct: number
+  previewFull?: boolean // 装修预览模式（瞬时，主进程下发）
 }
 
 interface GiftItem {
@@ -242,11 +245,11 @@ const danmuBoardConfig = ref<BoardConfig>({
   position: { x: 2, y: 76 },
   maxLines: 10,
   fontSize: 16,
-  showGift: true
+  showGift: true,
+  width: 360,
+  maxHeightPct: 80
 })
 const danmuBoardRef = ref<InstanceType<typeof DanmuBoard> | null>(null)
-// 最近一条弹幕的「发出→收到」延迟 ms，仅 ?debug=1 时在板子角落显示
-const boardLatencyMs = ref<number | null>(null)
 
 // 弹幕板缓冲：item 事件可能在 DanmuBoard 还没挂载（enabled 刚 true / ref 未绑定）时到达，
 // 直接 push 会被丢 → 观众看不到新弹幕。先入缓冲，板子就绪后按序补放。
@@ -790,9 +793,6 @@ onMounted(() => {
       const p = ev.payload as { content?: string }
       item.content = p?.content ?? ''
     }
-    // ?debug=1 时测「主进程发出 → 此刻收到」延迟（同机时钟）
-    const sentAt = (msg.extra as { sentAt?: number } | undefined)?.sentAt
-    if (typeof sentAt === 'number') boardLatencyMs.value = Date.now() - sentAt
     pushToBoard(item)
   })
 
@@ -915,7 +915,9 @@ onMounted(() => {
         ref="danmuBoardRef"
         :max-lines="danmuBoardConfig.maxLines"
         :font-size="danmuBoardConfig.fontSize"
-        :debug-ms="boardLatencyMs"
+        :width="danmuBoardConfig.width"
+        :max-height-pct="danmuBoardConfig.maxHeightPct"
+        :preview-full="danmuBoardConfig.previewFull"
       />
     </div>
 

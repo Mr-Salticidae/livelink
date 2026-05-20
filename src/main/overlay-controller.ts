@@ -14,6 +14,10 @@ export class OverlayController {
   // 配合 HTML no-store，OBS 浏览器源无需手动改 URL 即可拿到新包。
   private readonly bootId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
+  // 装修预览模式：开启时 overlay 端用假弹幕把板子填满，显示满载效果。
+  // 非持久（重启即关），调好画面后关掉就恢复真实状态
+  private previewFull = false
+
   constructor(
     private server: OverlayServer,
     private broadcaster: OverlayBroadcaster,
@@ -25,6 +29,51 @@ export class OverlayController {
 
   setOnChange(cb: () => void): void {
     this.onChange = cb
+  }
+
+  /** 当前 board config + 瞬时 previewFull 标记，统一构造广播 payload */
+  private boardConfigMessage(): {
+    kind: string
+    event: {
+      kind: string
+      platform: string
+      timestamp: number
+      user: { uid: string; uname: string }
+      payload: Record<string, never>
+    }
+    extra: Record<string, unknown>
+  } {
+    return {
+      kind: 'danmu.board.config',
+      event: {
+        kind: 'viewer.enter',
+        platform: 'bilibili',
+        timestamp: Date.now(),
+        user: { uid: '0', uname: '' },
+        payload: {}
+      },
+      extra: { ...this.config.getDanmuBoard(), previewFull: this.previewFull }
+    }
+  }
+
+  /** 广播给所有已连接 overlay（位置/尺寸/装修预览开关变更后调用） */
+  private broadcastBoardConfig(): void {
+    this.server.broadcast(this.boardConfigMessage() as Parameters<OverlayServer['broadcast']>[0])
+  }
+
+  /** Home 改了数值配置后，让所有 overlay 重新拉到最新（含 previewFull 标记） */
+  notifyBoardConfigChanged(): void {
+    this.broadcastBoardConfig()
+  }
+
+  /** 进入/退出装修预览模式（Home 按钮触发） */
+  setPreviewFull(on: boolean): void {
+    this.previewFull = on
+    this.broadcastBoardConfig()
+  }
+
+  isPreviewFull(): boolean {
+    return this.previewFull
   }
 
   async start(): Promise<void> {
@@ -39,17 +88,7 @@ export class OverlayController {
         // 兜底「连接早于监听器注册导致首发丢失」——这是开了板子却不显示的主因
         onSocketConnect: (socket) => {
           const pushConfig = (): void => {
-            socket.emit('danmu.board.config', {
-              kind: 'danmu.board.config',
-              event: {
-                kind: 'viewer.enter',
-                platform: 'bilibili',
-                timestamp: Date.now(),
-                user: { uid: '0', uname: '' },
-                payload: {}
-              },
-              extra: { ...this.config.getDanmuBoard() }
-            })
+            socket.emit('danmu.board.config', this.boardConfigMessage())
             // bootId 随同一可靠通道下发（connect + 端侧 request 兜底）
             socket.emit('overlay.hello', { bootId: this.bootId })
           }

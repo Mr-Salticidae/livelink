@@ -36,7 +36,9 @@ export const danmuBoard = ref<DanmuBoardConfig>({
   position: { x: 2, y: 76 },
   maxLines: 10,
   fontSize: 16,
-  showGift: true
+  showGift: true,
+  width: 360,
+  maxHeightPct: 80
 })
 
 export type PageKey =
@@ -139,11 +141,24 @@ export async function loadInitialData(): Promise<void> {
   }
 }
 
+// 装修预览模式：板子在 OBS 里装满假弹幕显示满载效果，方便对齐画面装修
+// 非持久（重启即关），调好画面后关掉就恢复真实状态
+export const danmuBoardPreviewFull = ref<boolean>(false)
+
 export async function patchDanmuBoard(patch: Partial<DanmuBoardConfig>): Promise<void> {
   try {
     danmuBoard.value = await window.api.patchDanmuBoard(patch)
   } catch (err) {
     console.error('patchDanmuBoard failed', err)
+  }
+}
+
+export async function toggleDanmuBoardPreviewFull(): Promise<void> {
+  try {
+    const r = await window.api.danmuBoardSetPreviewFull(!danmuBoardPreviewFull.value)
+    danmuBoardPreviewFull.value = r.previewFull
+  } catch (err) {
+    console.error('danmuBoardSetPreviewFull failed', err)
   }
 }
 

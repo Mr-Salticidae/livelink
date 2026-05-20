@@ -602,10 +602,47 @@ function validateConfig(
   }
 }
 
+// 中文数字 → 阿拉伯（覆盖 1-8 匹马够用）
+const CN_NUM: Record<string, string> = {
+  一: '1', 二: '2', 两: '2', 三: '3', 四: '4',
+  五: '5', 六: '6', 七: '7', 八: '8', 九: '9', 十: '10'
+}
+
+/**
+ * 把观众弹幕里的"马号 token"匹配到某匹马。按优先级：
+ *   1. 严格等于 key（"1"）
+ *   2. 严格等于 name（"红马"）
+ *   3. 归一化后等于 key：去掉「马号/马/号/第」前后缀 + 中文数字转阿拉伯
+ *      （覆盖 "1号" "一号" "马号1" "第1" "1马" 等自然写法）
+ * 归一化结果必须命中某匹马的 key 才算数，避免 "1万"→"1" 这种误判
+ */
+function matchHorse(token: string, horses: Horse[]): Horse | null {
+  const t = token.trim()
+  if (!t) return null
+
+  let h = horses.find((x) => x.key === t)
+  if (h) return h
+
+  h = horses.find((x) => x.name === t)
+  if (h) return h
+
+  // 归一化：剥离常见前后缀，中文数字逐字转阿拉伯
+  let norm = t.replace(/^(马号|号|第)/, '').replace(/(号|马)$/, '')
+  norm = norm
+    .split('')
+    .map((c) => CN_NUM[c] ?? c)
+    .join('')
+  if (norm && norm !== t) {
+    h = horses.find((x) => x.key === norm)
+    if (h) return h
+  }
+  return null
+}
+
 /**
  * 解析弹幕押注。返回 null 表示这条弹幕不是有效押注。
- * key 必须严格等于 horse.key（避免"1 万"被识别成"1"）
- * 与 guessing.parseBet 几乎相同，结构维持一致
+ * 马号支持 key / 马名 / "1号"/"一号"/"马号1" 等自然写法（见 matchHorse）。
+ * 金额仍严格用第二段数字（避免 "1万" 误判），缺省用 defaultBet
  */
 function parseBet(
   text: string,
@@ -615,8 +652,7 @@ function parseBet(
   const parts = text.split(/[\s,，：:]+/).filter((p) => p.length > 0)
   if (parts.length === 0) return null
 
-  const key = parts[0]
-  const matched = horses.find((h) => h.key === key)
+  const matched = matchHorse(parts[0], horses)
   if (!matched) return null
 
   let amount = defaultBet

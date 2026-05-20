@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // 给观众看的 OBS 弹幕信息板（区别于主播自己看的 DanmuOverlayWindow）。
-// 风格：简洁清新——半透明深色 + 浅字 + backdrop blur，新弹幕从底部滑入，
-// FIFO 超过 maxLines 丢最早
+// 风格：半透明深色 + 浅字，新弹幕从底部滑入，FIFO 超过 maxLines 丢最早。
+// 刻意不用 backdrop-filter blur —— 它在 OBS 的 CEF 浏览器源里要每帧重采样
+// 背景视频，常驻元素开销巨大，直播编码抢 CPU 时会把 socket 事件拖慢堆积，
+// 表现为弹幕板严重延迟。
 
 import { computed, nextTick, ref, watch } from 'vue'
 
@@ -20,13 +22,17 @@ interface BoardItem {
 const props = defineProps<{
   maxLines: number
   fontSize: number
-  debugMs?: number | null
+  width?: number // 板子宽度 px
+  maxHeightPct?: number // 板子最大高度，占视口高度百分比
+  previewFull?: boolean // 装修预览模式：装满假弹幕显示满载效果
 }>()
 
-// 仅当 overlay URL 带 ?debug=1 才显示延迟读数，正常直播不受影响
-const showDebug = computed(
-  () => new URLSearchParams(window.location.search).get('debug') === '1'
-)
+// Home 调宽度 / 字号 / 最大高度，实时透传成 CSS 变量
+const boardStyle = computed(() => ({
+  '--font-size': props.fontSize + 'px',
+  '--board-width': (props.width ?? 360) + 'px',
+  '--board-max-h': (props.maxHeightPct ?? 80) + 'vh'
+}))
 
 const items = ref<BoardItem[]>([])
 const scrollEl = ref<HTMLDivElement | null>(null)
@@ -50,29 +56,69 @@ watch(
   }
 )
 
+// 装修预览：按 maxLines 生成假弹幕，混入礼物 / 大航海 / 粉丝牌等元素，
+// 让主播看到「真实满载」时的视觉占位，方便对齐直播间装修
+const FAKE_NAMES = [
+  '跳蛛先生','小明','观众007','直播小助理','哈基米','摸鱼大王',
+  '灯神','糖糖','糯米团','一号粉丝','打工人','吃瓜群众','深夜来访','路过的'
+]
+const FAKE_CONTENTS = [
+  '666',
+  '主播好猛',
+  '哈哈哈哈',
+  '加油加油',
+  '再来一次',
+  '这波操作太秀了',
+  '大佬带带我',
+  '打个赏支持',
+  '这就是直播间气氛',
+  '弹幕板挤一挤'
+]
+const FAKE_GIFTS = ['辣条', '小心心', '咖啡', '打 call', '灯牌', '应援棒']
+const fakeItems = computed<BoardItem[]>(() =>
+  Array.from({ length: Math.max(1, props.maxLines) }).map((_, i) => {
+    const uname = FAKE_NAMES[i % FAKE_NAMES.length]
+    const isGift = i % 4 === 3
+    const isAnchor = i % 5 === 0
+    return isGift
+      ? {
+          id: `fake-${i}`,
+          kind: 'gift',
+          uname,
+          giftName: FAKE_GIFTS[i % FAKE_GIFTS.length],
+          num: 1 + (i % 5),
+          guardLevel: i % 6 === 0 ? 3 : 0
+        }
+      : {
+          id: `fake-${i}`,
+          kind: 'danmu',
+          uname,
+          content: FAKE_CONTENTS[i % FAKE_CONTENTS.length],
+          guardLevel: i % 6 === 0 ? 3 : 0,
+          isAnchor,
+          fansMedalLevel: isAnchor ? ((i % 20) + 1) : 0
+        }
+  })
+)
+
+// 预览模式下要展示满载样子；正常模式展示真实 items
+const visibleItems = computed<BoardItem[]>(() =>
+  props.previewFull ? fakeItems.value : items.value
+)
+
 defineExpose({ push, clear: () => (items.value = []) })
 </script>
 
 <template>
-  <div class="board" :style="{ '--font-size': fontSize + 'px' }">
-    <Teleport to="body">
-      <div
-        v-if="showDebug"
-        class="debug-badge"
-        :class="{
-          warn: debugMs != null && debugMs >= 1000,
-          ok: debugMs != null && debugMs < 1000
-        }"
-      >
-        延迟 {{ debugMs == null ? '—' : debugMs + 'ms' }}
-      </div>
-    </Teleport>
+  <div class="board" :style="boardStyle">
     <div ref="scrollEl" class="scroll">
-      <!-- 还没弹幕时给个占位，主播开板后能立刻确认它在工作；
+      <!-- 没弹幕、又不在装修预览时给个占位，确认板子在工作；
            一旦有弹幕进来这行自然消失，不打扰观众 -->
-      <div v-if="items.length === 0" class="placeholder">弹幕区 · 等待弹幕…</div>
+      <div v-if="!previewFull && items.length === 0" class="placeholder">
+        弹幕区 · 等待弹幕…
+      </div>
       <div
-        v-for="i in items"
+        v-for="i in visibleItems"
         :key="i.id"
         class="line"
         :class="{ 'line-gift': i.kind === 'gift' }"
@@ -93,18 +139,16 @@ defineExpose({ push, clear: () => (items.value = []) })
         </template>
       </div>
     </div>
+    <!-- 装修预览提示徽章：明确告诉主播这是预览不是真实弹幕 -->
+    <div v-if="previewFull" class="preview-tag">装修预览 · 假弹幕</div>
   </div>
 </template>
 
 <style scoped>
 .board {
-  /* 容器：固定宽度，高度由内容决定。
-     注意：刻意不用 backdrop-filter blur —— 它在 OBS 的 CEF 浏览器源里要每帧
-     重采样背景视频，是常驻元素时开销巨大，直播编码抢 CPU 时会把 socket 事件
-     拖慢堆积，表现为弹幕板严重延迟。改用稍实的半透明纯底 + 文字阴影保证可读。 */
   position: relative;
-  width: 360px;
-  max-height: 80vh;
+  width: var(--board-width, 360px);
+  max-height: var(--board-max-h, 80vh);
   background: rgba(15, 23, 42, 0.72);
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 14px;
@@ -115,30 +159,12 @@ defineExpose({ push, clear: () => (items.value = []) })
   box-shadow: 0 6px 20px -10px rgba(0, 0, 0, 0.4);
 }
 .scroll {
-  max-height: 72vh;
+  /* 跟随板子最大高度，减去 .board 上下 padding(20px) + 边框(2px) */
+  max-height: calc(var(--board-max-h, 80vh) - 22px);
   overflow-y: auto;
-  /* 隐藏 scrollbar 视觉，保留滚动功能 */
   scrollbar-width: none;
 }
 .scroll::-webkit-scrollbar { display: none; }
-
-.debug-badge {
-  /* 钉死在屏幕左上角，与板子位置无关——板子可能被拖到屏幕边缘外，
-     贴板子的话徽章会跟着跑出可视区。仅 ?debug=1 出现 */
-  position: fixed;
-  top: 6px;
-  left: 6px;
-  z-index: 9999;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.92);
-  color: #cbd5e1;
-  font-variant-numeric: tabular-nums;
-}
-.debug-badge.ok { color: #4ade80; }
-.debug-badge.warn { color: #f87171; }
 
 .placeholder {
   color: #94a3b8;
@@ -152,7 +178,7 @@ defineExpose({ push, clear: () => (items.value = []) })
   line-height: 1.5;
   word-break: break-word;
   padding: 3px 0;
-  /* 进场：从底部 12px 上滑 + 渐显，0.4s ease-out。forwards 保留终态 */
+  /* 进场：从底部 8px 上滑 + 渐显 */
   animation: lineIn 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 .line + .line {
@@ -193,5 +219,19 @@ defineExpose({ push, clear: () => (items.value = []) })
   font-weight: 600;
   min-width: 16px;
   text-align: center;
+}
+
+/* 装修预览徽章：钉在板子右上角外侧，醒目提示这是预览状态 */
+.preview-tag {
+  position: absolute;
+  top: -12px;
+  right: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.95);
+  color: #1f1300;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 </style>

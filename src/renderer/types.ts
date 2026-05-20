@@ -88,6 +88,8 @@ export interface DanmuBoardConfig {
   maxLines: number
   fontSize: number
   showGift: boolean
+  width: number
+  maxHeightPct: number
 }
 
 // 竞猜
@@ -333,6 +335,7 @@ export interface ApiSurface {
   // OBS 弹幕信息板
   getDanmuBoard: () => Promise<DanmuBoardConfig>
   patchDanmuBoard: (patch: Partial<DanmuBoardConfig>) => Promise<DanmuBoardConfig>
+  danmuBoardSetPreviewFull: (on: boolean) => Promise<{ previewFull: boolean }>
 
   // 弹幕抽奖
   lotteryStart: (config: LotteryConfig) => Promise<LotteryState>

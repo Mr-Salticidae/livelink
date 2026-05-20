@@ -15,36 +15,44 @@ import {
   toggleDanmuOverlay,
   toggleDanmuOverlayPin,
   danmuBoard,
-  patchDanmuBoard
+  patchDanmuBoard,
+  danmuBoardPreviewFull,
+  toggleDanmuBoardPreviewFull
 } from '../store'
 import type { Rule } from '../types'
-
-// 弹幕信息板 4 角快捷预设（位置为板子左上角的百分比）
-const BOARD_PRESETS: { value: { x: number; y: number }; label: string }[] = [
-  { value: { x: 2, y: 2 }, label: '左上' },
-  { value: { x: 80, y: 2 }, label: '右上' },
-  { value: { x: 2, y: 76 }, label: '左下' },
-  { value: { x: 80, y: 76 }, label: '右下' }
-]
 
 // 预览框 16:9 比例的拖动逻辑。容器尺寸 onmounted 测量
 const previewRef = ref<HTMLDivElement | null>(null)
 const dragging = ref(false)
+
+// 假设直播画布 1920×1080。预览框里板子缩略图的宽/高占比 = 真实尺寸 / 画布尺寸
+const boardWidthPct = computed(() =>
+  Math.max(5, Math.min(80, ((danmuBoard.value.width || 360) / 1920) * 100))
+)
+const boardHeightPct = computed(() =>
+  Math.max(10, Math.min(95, danmuBoard.value.maxHeightPct || 80))
+)
+
+// overlay 端用 translate(-x%, -y%) 让 position 是「对齐百分比」语义：
+//   x=0 → 板子左边贴视口左；x=100 → 板子右边贴视口右；x=50 → 水平居中
+// 所以 drag / snap 都直接用 [0, 100]，不再减 widthPct（之前那套是错的，
+// 导致 snap 到右下时只到 87% × 80%，离边缘还差一截）
 function startDragBoard(e: MouseEvent): void {
   if (!previewRef.value) return
   dragging.value = true
   e.preventDefault()
   const update = (evt: MouseEvent): void => {
     const rect = previewRef.value!.getBoundingClientRect()
-    // 鼠标点击位置作为板子左上角；x/y 百分比
     const x = ((evt.clientX - rect.left) / rect.width) * 100
     const y = ((evt.clientY - rect.top) / rect.height) * 100
-    // overlay 端用自身尺寸反向位移定位，0-100 全程都不溢出，这里允许满量程
-    const clampedX = Math.max(0, Math.min(100, x))
-    const clampedY = Math.max(0, Math.min(100, y))
-    patchDanmuBoard({ position: { x: Math.round(clampedX), y: Math.round(clampedY) } })
+    patchDanmuBoard({
+      position: {
+        x: Math.round(Math.max(0, Math.min(100, x)) * 100) / 100,
+        y: Math.round(Math.max(0, Math.min(100, y)) * 100) / 100
+      }
+    })
   }
-  update(e) // 点击位置立即跳到那里
+  update(e)
   const move = (evt: MouseEvent): void => {
     if (!dragging.value) return
     update(evt)
@@ -56,6 +64,51 @@ function startDragBoard(e: MouseEvent): void {
   }
   window.addEventListener('mousemove', move)
   window.addEventListener('mouseup', up)
+}
+
+// 在预览框里拖拽缩放：板子缩略图右下角的小角标
+const resizing = ref(false)
+function startResizeBoard(e: MouseEvent): void {
+  if (!previewRef.value) return
+  e.preventDefault()
+  e.stopPropagation()
+  resizing.value = true
+  const rect = previewRef.value.getBoundingClientRect()
+  // 用 translate 诡计后，板子缩略图的左上角 = 锚点(左上对齐量)
+  // 缩略图左上像素 = position.x% × previewW - widthPct% × previewW
+  const px = danmuBoard.value.position.x / 100
+  const boxLeftPx = px * rect.width - (boardWidthPct.value / 100) * rect.width * px
+  const py = danmuBoard.value.position.y / 100
+  const boxTopPx = py * rect.height - (boardHeightPct.value / 100) * rect.height * py
+  const update = (evt: MouseEvent): void => {
+    const relX = evt.clientX - rect.left - boxLeftPx
+    const relY = evt.clientY - rect.top - boxTopPx
+    const newWidth = Math.max(240, Math.min(960, Math.round((relX / rect.width) * 1920)))
+    const newMaxHeightPct = Math.max(
+      20,
+      Math.min(95, Math.round((relY / rect.height) * 100))
+    )
+    patchDanmuBoard({ width: newWidth, maxHeightPct: newMaxHeightPct })
+  }
+  update(e)
+  const move = (evt: MouseEvent): void => {
+    if (!resizing.value) return
+    update(evt)
+  }
+  const up = (): void => {
+    resizing.value = false
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+}
+
+// 5 个一键贴边按钮：直接用对齐百分比，0 / 50 / 100 三档
+function snapBoardTo(fx: number, fy: number): void {
+  patchDanmuBoard({
+    position: { x: fx * 100, y: fy * 100 }
+  })
 }
 import BilibiliAuthAdvanced from '../components/BilibiliAuthAdvanced.vue'
 
@@ -272,15 +325,41 @@ async function copyOverlayUrl(): Promise<void> {
 
       <!-- 详细配置：开启时才显示 -->
       <div v-if="danmuBoard.enabled" class="space-y-3 rounded-lg bg-slate-950/40 p-3">
+        <!-- 装修预览模式：OBS 板子装满假弹幕，看满载效果 -->
+        <div class="rounded-lg border p-3"
+          :class="danmuBoardPreviewFull ? 'border-amber-500/60 bg-amber-500/10' : 'border-slate-700 bg-slate-900/40'">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs font-medium text-slate-200">装修预览模式</p>
+              <p class="mt-1 text-[11px] text-slate-500">
+                开启后 OBS 弹幕板会按
+                <strong class="text-slate-300">当前宽度 / 字号 / 最大条数</strong>
+                装满假弹幕显示，让你直观看到满载时的体积，方便对齐直播间画面装修。调好关掉即恢复真实状态（重启自动关）。
+              </p>
+            </div>
+            <button
+              class="relative h-5 w-9 shrink-0 rounded-full transition"
+              :class="danmuBoardPreviewFull ? 'bg-amber-500' : 'bg-slate-600'"
+              @click="toggleDanmuBoardPreviewFull"
+              :title="danmuBoardPreviewFull ? '退出装修预览' : '开启装修预览'"
+            >
+              <span
+                class="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition"
+                :class="danmuBoardPreviewFull ? 'translate-x-4' : 'translate-x-0'"
+              ></span>
+            </button>
+          </div>
+        </div>
+
         <div>
           <label class="text-xs text-slate-400">
-            位置（拖动预览框里的方块到任意位置，或点 4 角快捷预设）
+            位置 + 尺寸（推荐用这个预览框调，OBS 画面实时同步——拖蓝框移动、拖右下角缩放、或点下方一键贴边）
           </label>
-          <!-- 16:9 拖动预览框 -->
+          <!-- 16:9 拖动预览框（按真实 1920×1080 比例） -->
           <div
             ref="previewRef"
             class="mt-2 relative aspect-video w-full rounded-lg border border-slate-700 bg-gradient-to-br from-slate-800/60 to-slate-950 cursor-crosshair select-none overflow-hidden"
-            :class="dragging ? 'border-sky-400' : ''"
+            :class="dragging || resizing ? 'border-sky-400' : ''"
             @mousedown="startDragBoard"
           >
             <!-- 屏幕中心十字辅助线 -->
@@ -288,33 +367,57 @@ async function copyOverlayUrl(): Promise<void> {
               <div class="absolute left-1/2 top-0 bottom-0 border-l border-slate-700/40"></div>
               <div class="absolute top-1/2 left-0 right-0 border-t border-slate-700/40"></div>
             </div>
-            <!-- DanmuBoard 缩略图 -->
+            <!-- DanmuBoard 缩略图：按 (width/1920, maxHeightPct) 真实占比绘制，
+                 用 translate(-x%, -y%) 跟 overlay 端语义对齐：
+                 x=0 板子左贴视口左、x=100 板子右贴视口右、x=50 水平居中。
+                 任何 x/y 都能保证板子整体不溢出预览框 -->
             <div
-              class="absolute rounded bg-sky-500/30 border border-sky-400/80 shadow-lg pointer-events-none transition-all duration-100"
+              class="absolute rounded bg-sky-500/30 border border-sky-400/80 shadow-lg"
               :style="{
                 left: danmuBoard.position.x + '%',
                 top: danmuBoard.position.y + '%',
                 transform: `translate(-${danmuBoard.position.x}%, -${danmuBoard.position.y}%)`,
-                width: '18%',
-                height: '22%'
+                width: boardWidthPct + '%',
+                height: boardHeightPct + '%'
               }"
             >
-              <div class="text-[8px] text-sky-100 text-center mt-0.5 font-medium">弹幕板</div>
+              <div class="text-[8px] text-sky-100 text-center mt-0.5 font-medium pointer-events-none">弹幕板</div>
+              <!-- 右下角缩放角标 -->
+              <div
+                class="absolute -right-1 -bottom-1 w-3 h-3 rounded-sm bg-sky-400 border border-sky-100 cursor-nwse-resize hover:scale-125 transition"
+                @mousedown.stop="startResizeBoard"
+                title="拖动缩放板子真实大小"
+              ></div>
             </div>
-            <!-- 当前位置坐标 -->
+            <!-- 当前位置 + 尺寸坐标 -->
             <div class="absolute right-1.5 bottom-1.5 text-[9px] text-slate-400 font-mono bg-slate-950/60 px-1.5 rounded">
-              x: {{ danmuBoard.position.x }}% · y: {{ danmuBoard.position.y }}%
+              x:{{ Math.round(danmuBoard.position.x) }}% · y:{{ Math.round(danmuBoard.position.y) }}% ·
+              {{ danmuBoard.width }}×{{ danmuBoard.maxHeightPct }}%
             </div>
           </div>
 
-          <!-- 4 角快捷预设 -->
-          <div class="mt-2 grid grid-cols-4 gap-1">
+          <!-- 5 个一键贴边（板宽板高自动算精确位置） -->
+          <div class="mt-2 grid grid-cols-5 gap-1">
             <button
-              v-for="p in BOARD_PRESETS"
-              :key="p.label"
-              @click="patchDanmuBoard({ position: p.value })"
+              @click="snapBoardTo(0, 0)"
               class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-600 transition"
-            >{{ p.label }}</button>
+            >⌜ 左上</button>
+            <button
+              @click="snapBoardTo(1, 0)"
+              class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-600 transition"
+            >⌝ 右上</button>
+            <button
+              @click="snapBoardTo(0.5, 0.5)"
+              class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-600 transition"
+            >● 居中</button>
+            <button
+              @click="snapBoardTo(0, 1)"
+              class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-600 transition"
+            >⌞ 左下</button>
+            <button
+              @click="snapBoardTo(1, 1)"
+              class="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-600 transition"
+            >⌟ 右下</button>
           </div>
         </div>
 
@@ -334,6 +437,24 @@ async function copyOverlayUrl(): Promise<void> {
               :value="danmuBoard.fontSize"
               @change="patchDanmuBoard({ fontSize: Number(($event.target as HTMLInputElement).value) })"
               type="number" min="12" max="24"
+              class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+            />
+          </label>
+          <label class="text-xs text-slate-400">
+            宽度 px（240-960）
+            <input
+              :value="danmuBoard.width"
+              @change="patchDanmuBoard({ width: Number(($event.target as HTMLInputElement).value) })"
+              type="number" min="240" max="960" step="10"
+              class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+            />
+          </label>
+          <label class="text-xs text-slate-400">
+            最大高度 %（20-95）
+            <input
+              :value="danmuBoard.maxHeightPct"
+              @change="patchDanmuBoard({ maxHeightPct: Number(($event.target as HTMLInputElement).value) })"
+              type="number" min="20" max="95" step="5"
               class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
             />
           </label>

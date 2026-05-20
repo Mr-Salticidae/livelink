@@ -99,6 +99,8 @@ const api = {
   getDanmuBoard: () => ipcRenderer.invoke(IpcChannels.DanmuBoardGet),
   patchDanmuBoard: (patch: Record<string, unknown>) =>
     ipcRenderer.invoke(IpcChannels.DanmuBoardPatch, cleanForIpc(patch)),
+  danmuBoardSetPreviewFull: (on: boolean) =>
+    ipcRenderer.invoke(IpcChannels.DanmuBoardSetPreviewFull, on),
 
   // 弹幕抽奖
   lotteryStart: (config: unknown) =>

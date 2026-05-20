@@ -86,6 +86,8 @@ export interface DanmuBoardConfig {
   maxLines: number // 同时显示条数上限 5-30
   fontSize: number // 字号 12-24 px
   showGift: boolean // 礼物事件是否也进面板（默认 true）
+  width: number // 板子宽度 px（240-960）
+  maxHeightPct: number // 板子最大高度，占视口高度百分比（20-95）
 }
 
 // 老配置 (0.6.x 之前) 是 4 角字符串，迁移到 { x, y } 百分比
@@ -133,7 +135,9 @@ const DEFAULT_DANMU_BOARD: DanmuBoardConfig = {
   position: { x: 2, y: 76 }, // 左下区
   maxLines: 10,
   fontSize: 16,
-  showGift: true
+  showGift: true,
+  width: 360,
+  maxHeightPct: 80
 }
 
 const DEFAULT_LOTTERY_PRESET: LotteryPreset = {
@@ -391,7 +395,15 @@ export class AppConfig {
       position,
       maxLines: typeof stored.maxLines === 'number' ? stored.maxLines : DEFAULT_DANMU_BOARD.maxLines,
       fontSize: typeof stored.fontSize === 'number' ? stored.fontSize : DEFAULT_DANMU_BOARD.fontSize,
-      showGift: stored.showGift ?? DEFAULT_DANMU_BOARD.showGift
+      showGift: stored.showGift ?? DEFAULT_DANMU_BOARD.showGift,
+      width: clampBoardWidth(
+        typeof stored.width === 'number' ? stored.width : DEFAULT_DANMU_BOARD.width
+      ),
+      maxHeightPct: clampBoardMaxHeight(
+        typeof stored.maxHeightPct === 'number'
+          ? stored.maxHeightPct
+          : DEFAULT_DANMU_BOARD.maxHeightPct
+      )
     }
   }
   setDanmuBoard(cfg: DanmuBoardConfig): void {
@@ -401,7 +413,9 @@ export class AppConfig {
       position: {
         x: clampPercent(cfg.position?.x ?? DEFAULT_DANMU_BOARD.position.x),
         y: clampPercent(cfg.position?.y ?? DEFAULT_DANMU_BOARD.position.y)
-      }
+      },
+      width: clampBoardWidth(cfg.width ?? DEFAULT_DANMU_BOARD.width),
+      maxHeightPct: clampBoardMaxHeight(cfg.maxHeightPct ?? DEFAULT_DANMU_BOARD.maxHeightPct)
     }
     this.store.set('danmuBoard', safe)
   }
@@ -571,4 +585,15 @@ function decryptSessdata(stored: string): string {
 function clampPercent(n: number): number {
   if (!Number.isFinite(n)) return 0
   return Math.max(0, Math.min(100, n))
+}
+
+// DanmuBoard 宽度 px clamp（240-960，覆盖窄条到接近半屏）
+function clampBoardWidth(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_DANMU_BOARD.width
+  return Math.round(Math.max(240, Math.min(960, n)))
+}
+// DanmuBoard 最大高度 占视口百分比 clamp（20-95）
+function clampBoardMaxHeight(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_DANMU_BOARD.maxHeightPct
+  return Math.round(Math.max(20, Math.min(95, n)))
 }

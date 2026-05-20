@@ -113,19 +113,15 @@ bus.on('event', (e) => {
 bus.on('event', (e) => {
   const cfg = config.getDanmuBoard()
   if (!cfg.enabled) return
-  // sentAt：主进程发出时刻。overlay 端 ?debug=1 时用 Date.now()-sentAt
-  // 算「发出→渲染」真实延迟（同机时钟，精确）
   if (e.kind === 'danmu.received') {
     overlayBroadcaster.broadcast({
       kind: 'danmu.board.item',
-      event: e,
-      extra: { sentAt: Date.now() }
+      event: e
     })
   } else if (e.kind === 'gift.received' && cfg.showGift) {
     overlayBroadcaster.broadcast({
       kind: 'danmu.board.item',
-      event: e,
-      extra: { sentAt: Date.now() }
+      event: e
     })
   }
 })
