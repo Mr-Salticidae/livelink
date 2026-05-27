@@ -14,7 +14,7 @@ const items: { key: PageKey; label: string; icon: string }[] = [
   { key: 'logs', label: '日志', icon: '📝' }
 ]
 
-const APP_VERSION = '0.1.0'
+const APP_VERSION = '1.4.0'
 
 function goto(key: PageKey): void {
   currentPage.value = key
