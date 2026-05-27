@@ -17,9 +17,12 @@ import {
   danmuBoard,
   patchDanmuBoard,
   danmuBoardPreviewFull,
-  toggleDanmuBoardPreviewFull
+  toggleDanmuBoardPreviewFull,
+  overlayTheme,
+  patchOverlayTheme
 } from '../store'
 import type { Rule } from '../types'
+import { OVERLAY_THEME_PRESETS, type OverlayThemeId } from '../../shared/overlay-theme'
 
 // 预览框 16:9 比例的拖动逻辑。容器尺寸 onmounted 测量
 const previewRef = ref<HTMLDivElement | null>(null)
@@ -109,6 +112,10 @@ function snapBoardTo(fx: number, fy: number): void {
   patchDanmuBoard({
     position: { x: fx * 100, y: fy * 100 }
   })
+}
+
+function selectOverlayTheme(id: OverlayThemeId): void {
+  void patchOverlayTheme({ id })
 }
 import BilibiliAuthAdvanced from '../components/BilibiliAuthAdvanced.vue'
 
@@ -298,6 +305,41 @@ async function copyOverlayUrl(): Promise<void> {
         <li>2. 起个名字（比如"LiveLink Overlay"）→ 确定。</li>
         <li>3. 把上面这个 URL 粘贴到"URL"栏 → 宽度 1920、高度 1080 → 确定。直播间一有动静，特效就会出现。</li>
       </ol>
+    </section>
+
+    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div>
+        <h2 class="text-sm font-medium text-slate-300">观众端主题</h2>
+        <p class="mt-1 text-xs text-slate-500">
+          影响 OBS 画面里的欢迎、礼物、小游戏卡片和宠物栏。切换后 OBS 浏览器源实时同步。
+        </p>
+      </div>
+      <div class="mt-4 grid gap-3 md:grid-cols-2">
+        <button
+          v-for="theme in OVERLAY_THEME_PRESETS"
+          :key="theme.id"
+          @click="selectOverlayTheme(theme.id)"
+          class="rounded-xl border p-3 text-left transition"
+          :class="
+            overlayTheme.id === theme.id
+              ? 'border-pink-300/80 bg-pink-500/10 shadow-[0_0_28px_rgba(244,114,182,0.18)]'
+              : 'border-slate-800 bg-slate-950/40 hover:border-slate-600'
+          "
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="font-medium text-slate-100">{{ theme.name }}</div>
+            <div class="flex gap-1">
+              <span
+                v-for="c in theme.swatches"
+                :key="c"
+                class="h-4 w-4 rounded-full border border-white/20"
+                :style="{ backgroundColor: c }"
+              ></span>
+            </div>
+          </div>
+          <div class="mt-1 text-xs leading-relaxed text-slate-500">{{ theme.desc }}</div>
+        </button>
+      </div>
     </section>
 
     <!-- OBS 弹幕信息板（给观众看的直播屏 overlay） -->

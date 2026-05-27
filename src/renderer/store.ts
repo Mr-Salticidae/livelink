@@ -15,6 +15,7 @@ import type {
   VotingState
 } from './types'
 import { DEFAULT_PET_CONFIG } from '../shared/pets'
+import { DEFAULT_OVERLAY_THEME, type OverlayThemeConfig } from '../shared/overlay-theme'
 
 export const status = ref<ConnectionStatus>({ state: 'idle' })
 export const room = ref<{ id: string }>({ id: '' })
@@ -48,6 +49,7 @@ export const danmuBoard = ref<DanmuBoardConfig>({
   width: 360,
   maxHeightPct: 80
 })
+export const overlayTheme = ref<OverlayThemeConfig>({ ...DEFAULT_OVERLAY_THEME })
 
 export type PageKey =
   | 'home'
@@ -151,6 +153,11 @@ export async function loadInitialData(): Promise<void> {
   } catch (err) {
     console.error('getDanmuBoard failed', err)
   }
+  try {
+    overlayTheme.value = await api.overlayThemeGet()
+  } catch (err) {
+    console.error('overlayThemeGet failed', err)
+  }
 }
 
 // 装修预览模式：板子在 OBS 里装满假弹幕显示满载效果，方便对齐画面装修
@@ -236,6 +243,14 @@ export async function initGuessing(): Promise<void> {
   window.api.onGuessingStatus((s) => {
     guessingState.value = s
   })
+}
+
+export async function patchOverlayTheme(patch: Partial<OverlayThemeConfig>): Promise<void> {
+  try {
+    overlayTheme.value = await window.api.overlayThemePatch(patch)
+  } catch (err) {
+    console.error('overlayThemePatch failed', err)
+  }
 }
 
 export async function initPets(): Promise<void> {

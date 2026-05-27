@@ -101,6 +101,9 @@ const api = {
     ipcRenderer.invoke(IpcChannels.DanmuBoardPatch, cleanForIpc(patch)),
   danmuBoardSetPreviewFull: (on: boolean) =>
     ipcRenderer.invoke(IpcChannels.DanmuBoardSetPreviewFull, on),
+  overlayThemeGet: () => ipcRenderer.invoke(IpcChannels.OverlayThemeGet),
+  overlayThemePatch: (patch: unknown) =>
+    ipcRenderer.invoke(IpcChannels.OverlayThemePatch, cleanForIpc(patch)),
 
   // 弹幕抽奖
   lotteryStart: (config: unknown) =>

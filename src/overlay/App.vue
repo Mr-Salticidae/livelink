@@ -21,6 +21,7 @@ import Celebration from './components/Celebration.vue'
 import PetDock from './components/PetDock.vue'
 import PetCard from './components/PetCard.vue'
 import type { PetDisplayItem } from '../shared/pets'
+import { DEFAULT_OVERLAY_THEME, normalizeOverlayThemeId, type OverlayThemeId } from '../shared/overlay-theme'
 
 interface BoardPosition { x: number; y: number }
 interface BoardConfig {
@@ -221,6 +222,7 @@ const petDockEnabled = ref(false)
 const petDockItems = ref<PetDisplayItem[]>([])
 const activePetCard = ref<PetCardItem | null>(null)
 const PET_CARD_VISIBLE_MS = 6500
+const overlayThemeId = ref<OverlayThemeId>(DEFAULT_OVERLAY_THEME.id)
 
 // 开场招牌：游戏启动那 2.4 秒显示
 interface IntroState {
@@ -812,6 +814,11 @@ onMounted(() => {
     danmuBoardConfig.value = { ...danmuBoardConfig.value, ...x }
   })
 
+  on<OverlayPayload>('overlay.theme', (msg) => {
+    const x = msg.extra as { id?: string } | undefined
+    overlayThemeId.value = normalizeOverlayThemeId(x?.id)
+  })
+
   // OBS 弹幕信息板：每条弹幕 / 礼物（仅 enabled 时主进程才推）
   on<OverlayPayload>('danmu.board.item', (msg) => {
     const ev = msg.event
@@ -866,7 +873,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="relative h-screen w-screen overflow-hidden">
+  <div class="overlay-root relative h-screen w-screen overflow-hidden" :class="`overlay-theme-${overlayThemeId}`">
     <!-- 顶部进房欢迎区 -->
     <div class="absolute left-1/2 top-6 -translate-x-1/2 flex flex-col items-center gap-2">
       <ViewerEnterBanner v-for="e in activeEnters" :key="e.id" :text="e.text" />
@@ -1123,4 +1130,107 @@ onMounted(() => {
 <style>
 html, body, #app { height: 100%; margin: 0; }
 body { background: transparent; }
+
+.overlay-root {
+  --ov-accent: #38bdf8;
+  --ov-accent-2: #f59e0b;
+  --ov-card-bg: rgba(15, 23, 42, 0.78);
+  --ov-card-border: rgba(148, 163, 184, 0.28);
+  --ov-text: #f8fafc;
+  --ov-muted: #cbd5e1;
+  --ov-glow: rgba(56, 189, 248, 0.28);
+  --ov-radius: 18px;
+  --ov-blur: 8px;
+  --ov-font: 'Noto Sans SC', system-ui, sans-serif;
+  font-family: var(--ov-font);
+}
+
+.overlay-theme-sakura {
+  --ov-accent: #fb7185;
+  --ov-accent-2: #f9a8d4;
+  --ov-card-bg: rgba(76, 29, 60, 0.58);
+  --ov-card-border: rgba(251, 207, 232, 0.55);
+  --ov-text: #fff7ed;
+  --ov-muted: #ffe4e6;
+  --ov-glow: rgba(244, 114, 182, 0.34);
+  --ov-radius: 24px;
+}
+
+.overlay-theme-candy {
+  --ov-accent: #2dd4bf;
+  --ov-accent-2: #f9a8d4;
+  --ov-card-bg: rgba(20, 83, 88, 0.54);
+  --ov-card-border: rgba(153, 246, 228, 0.46);
+  --ov-text: #f0fdfa;
+  --ov-muted: #ccfbf1;
+  --ov-glow: rgba(45, 212, 191, 0.32);
+  --ov-radius: 22px;
+}
+
+.overlay-theme-neon {
+  --ov-accent: #a855f7;
+  --ov-accent-2: #22d3ee;
+  --ov-card-bg: rgba(24, 13, 49, 0.72);
+  --ov-card-border: rgba(216, 180, 254, 0.5);
+  --ov-text: #faf5ff;
+  --ov-muted: #e9d5ff;
+  --ov-glow: rgba(168, 85, 247, 0.42);
+  --ov-radius: 14px;
+}
+
+.overlay-root .enter-banner {
+  border: 1px solid var(--ov-card-border);
+  border-radius: 999px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ov-accent), transparent 10%), color-mix(in srgb, var(--ov-accent-2), transparent 8%)) !important;
+  color: var(--ov-text);
+  box-shadow: 0 10px 34px var(--ov-glow);
+  backdrop-filter: blur(var(--ov-blur));
+}
+
+.overlay-root .gift-card,
+.overlay-root .hr-card,
+.overlay-root .guess-card,
+.overlay-root .guess-result,
+.overlay-root .vote-card,
+.overlay-root .vote-result,
+.overlay-root .lottery-card,
+.overlay-root .lottery-result,
+.overlay-root .blindbox-card,
+.overlay-root .wallet-card {
+  border-color: var(--ov-card-border) !important;
+  border-radius: var(--ov-radius) !important;
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--ov-accent), transparent 64%), transparent 34%),
+    linear-gradient(135deg, var(--ov-card-bg), rgba(15, 23, 42, 0.72)) !important;
+  color: var(--ov-text) !important;
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.48), 0 0 34px var(--ov-glow) !important;
+  backdrop-filter: blur(var(--ov-blur));
+}
+
+.overlay-root .pet-dock {
+  border-color: var(--ov-card-border);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ov-accent), transparent 82%), var(--ov-card-bg));
+  box-shadow: 0 -14px 46px var(--ov-glow);
+}
+
+.overlay-root .pet-card {
+  --accent: var(--ov-accent);
+}
+
+.overlay-theme-sakura .intro-card {
+  background: linear-gradient(135deg, #fb7185, #f9a8d4, #fda4af) !important;
+  border-color: rgba(255, 228, 230, 0.78) !important;
+  box-shadow: 0 0 82px rgba(244, 114, 182, 0.62), 0 24px 80px -10px rgba(0, 0, 0, 0.72) !important;
+}
+
+.overlay-theme-candy .intro-card {
+  background: linear-gradient(135deg, #2dd4bf, #f9a8d4, #fde68a) !important;
+  border-color: rgba(240, 253, 250, 0.78) !important;
+}
+
+.overlay-theme-neon .intro-card {
+  background: linear-gradient(135deg, #581c87, #a855f7, #0891b2) !important;
+  border-color: rgba(216, 180, 254, 0.78) !important;
+}
 </style>

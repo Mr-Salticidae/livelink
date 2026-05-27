@@ -21,6 +21,7 @@ import type { WalletStore } from './services/wallet-store'
 import type { GuessingGlobalConfig } from './config/store'
 import type { PetConfig } from '../shared/pets'
 import type { AiReplyConfig } from '../shared/ai-reply'
+import type { OverlayThemeConfig } from '../shared/overlay-theme'
 import { toFriendlyError } from './errors/friendly'
 
 export interface IpcDeps {
@@ -231,6 +232,12 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IpcChannels.DanmuBoardSetPreviewFull, (_e, on: boolean) => {
     overlayController.setPreviewFull(Boolean(on))
     return { previewFull: overlayController.isPreviewFull() }
+  })
+  ipcMain.handle(IpcChannels.OverlayThemeGet, () => config.getOverlayTheme())
+  ipcMain.handle(IpcChannels.OverlayThemePatch, (_e, patch: Partial<OverlayThemeConfig>) => {
+    const next = config.patchOverlayTheme(patch)
+    overlayController.notifyThemeChanged()
+    return next
   })
 
   // ─── 弹幕抽奖 ──────────────────────────────────────────────

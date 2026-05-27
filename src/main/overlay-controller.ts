@@ -58,14 +58,36 @@ export class OverlayController {
     }
   }
 
+  private themeMessage(): ReturnType<OverlayController['boardConfigMessage']> {
+    return {
+      kind: 'overlay.theme',
+      event: {
+        kind: 'viewer.enter',
+        platform: 'bilibili',
+        timestamp: Date.now(),
+        user: { uid: '0', uname: '' },
+        payload: {}
+      },
+      extra: { ...this.config.getOverlayTheme() }
+    }
+  }
+
   /** 广播给所有已连接 overlay（位置/尺寸/装修预览开关变更后调用） */
   private broadcastBoardConfig(): void {
     this.server.broadcast(this.boardConfigMessage() as Parameters<OverlayServer['broadcast']>[0])
   }
 
+  private broadcastTheme(): void {
+    this.server.broadcast(this.themeMessage() as Parameters<OverlayServer['broadcast']>[0])
+  }
+
   /** Home 改了数值配置后，让所有 overlay 重新拉到最新（含 previewFull 标记） */
   notifyBoardConfigChanged(): void {
     this.broadcastBoardConfig()
+  }
+
+  notifyThemeChanged(): void {
+    this.broadcastTheme()
   }
 
   /** 进入/退出装修预览模式（Home 按钮触发） */
@@ -96,6 +118,7 @@ export class OverlayController {
         onSocketConnect: (socket) => {
           const pushConfig = (): void => {
             socket.emit('danmu.board.config', this.boardConfigMessage())
+            socket.emit('overlay.theme', this.themeMessage())
             // bootId 随同一可靠通道下发（connect + 端侧 request 兜底）
             socket.emit('overlay.hello', { bootId: this.bootId })
             for (const push of this.socketInitPushers) push(socket)

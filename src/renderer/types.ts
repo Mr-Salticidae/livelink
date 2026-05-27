@@ -10,9 +10,11 @@ import type {
   UserPet
 } from '../shared/pets'
 import type { AiReplyPublicConfig } from '../shared/ai-reply'
+import type { OverlayThemeConfig } from '../shared/overlay-theme'
 
 export type {
   AiReplyPublicConfig,
+  OverlayThemeConfig,
   PetConfig,
   PetDisplayItem,
   PetOwner,
@@ -360,6 +362,8 @@ export interface ApiSurface {
   getDanmuBoard: () => Promise<DanmuBoardConfig>
   patchDanmuBoard: (patch: Partial<DanmuBoardConfig>) => Promise<DanmuBoardConfig>
   danmuBoardSetPreviewFull: (on: boolean) => Promise<{ previewFull: boolean }>
+  overlayThemeGet: () => Promise<OverlayThemeConfig>
+  overlayThemePatch: (patch: Partial<OverlayThemeConfig>) => Promise<OverlayThemeConfig>
 
   // 弹幕抽奖
   lotteryStart: (config: LotteryConfig) => Promise<LotteryState>

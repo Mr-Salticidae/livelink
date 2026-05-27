@@ -11,6 +11,11 @@ import {
   type AiReplyPublicConfig,
   toPublicAiReplyConfig
 } from '../../shared/ai-reply'
+import {
+  DEFAULT_OVERLAY_THEME,
+  normalizeOverlayThemeId,
+  type OverlayThemeConfig
+} from '../../shared/overlay-theme'
 
 // B 站登录态。SESSDATA 是 cookie，2023 年 7 月起 B 站对游客限制 DANMU_MSG 推送，需要登录态。
 // 仅本地存储，不上传。sessdata 用 Electron safeStorage 加密（Win 上走 DPAPI，与当前用户账号绑定），
@@ -124,6 +129,7 @@ export interface AppConfigSchema {
   auth: { bilibili: BilibiliAuth }
   danmuOverlay: DanmuOverlayConfig
   danmuBoard: DanmuBoardConfig
+  overlayTheme: OverlayThemeConfig
   lottery: LotteryPreset
   voting: VotingPreset
   horseRace: HorseRacePreset
@@ -238,6 +244,7 @@ const defaults: AppConfigSchema = {
   auth: { bilibili: { sessdata: '', uid: '', buvid: '' } },
   danmuOverlay: { ...DEFAULT_DANMU_OVERLAY },
   danmuBoard: { ...DEFAULT_DANMU_BOARD },
+  overlayTheme: { ...DEFAULT_OVERLAY_THEME },
   lottery: { ...DEFAULT_LOTTERY_PRESET },
   voting: { ...DEFAULT_VOTING_PRESET },
   horseRace: { ...DEFAULT_HORSE_RACE_PRESET, horses: [...DEFAULT_HORSE_RACE_PRESET.horses] },
@@ -439,6 +446,20 @@ export class AppConfig {
     const next: DanmuBoardConfig = { ...this.getDanmuBoard(), ...patch }
     this.setDanmuBoard(next)
     return this.getDanmuBoard() // 返回 clamp 后的值
+  }
+
+  // OBS overlay 主题
+  getOverlayTheme(): OverlayThemeConfig {
+    const stored = this.store.get('overlayTheme') as Partial<OverlayThemeConfig> | undefined
+    return { id: normalizeOverlayThemeId(stored?.id) }
+  }
+  setOverlayTheme(config: OverlayThemeConfig): void {
+    this.store.set('overlayTheme', { id: normalizeOverlayThemeId(config.id) })
+  }
+  patchOverlayTheme(patch: Partial<OverlayThemeConfig>): OverlayThemeConfig {
+    const next = { ...this.getOverlayTheme(), ...patch }
+    this.setOverlayTheme(next)
+    return this.getOverlayTheme()
   }
 
   // 竞猜（全局货币 + preset 列表）
