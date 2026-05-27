@@ -58,6 +58,7 @@ export type PageKey =
   | 'horserace'
   | 'guessing'
   | 'pets'
+  | 'ai'
   | 'logs'
 export const currentPage = ref<PageKey>('home')
 

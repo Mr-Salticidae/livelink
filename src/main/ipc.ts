@@ -16,9 +16,11 @@ import { setHorseRaceInitialBalanceFallback } from './services/horse-race'
 import type { GuessingService, GuessingConfig } from './services/guessing'
 import { setInitialBalanceFallback } from './services/guessing'
 import type { PetService } from './services/pets'
+import type { AiReplyService } from './services/ai-reply'
 import type { WalletStore } from './services/wallet-store'
 import type { GuessingGlobalConfig } from './config/store'
 import type { PetConfig } from '../shared/pets'
+import type { AiReplyConfig } from '../shared/ai-reply'
 import { toFriendlyError } from './errors/friendly'
 
 export interface IpcDeps {
@@ -34,6 +36,7 @@ export interface IpcDeps {
   horseRace: HorseRaceService
   guessing: GuessingService
   pets: PetService
+  aiReply: AiReplyService
   wallet: WalletStore
   config: AppConfig
   log: LogSink
@@ -53,6 +56,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     horseRace,
     guessing,
     pets,
+    aiReply,
     wallet,
     config,
     log,
@@ -415,6 +419,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   pets.onStatusChange((s) => {
     deps.getMainWindow()?.webContents.send(IpcChannels.PetStatusUpdate, s)
+  })
+
+  // ─── AI 智能回复（DeepSeek，主播自备 Key） ───────────────────
+  ipcMain.handle(IpcChannels.AiReplyConfigGet, () => config.getAiReplyPublic())
+  ipcMain.handle(IpcChannels.AiReplyConfigPatch, (_e, patch: Partial<AiReplyConfig>) =>
+    config.patchAiReply(patch)
+  )
+  ipcMain.handle(IpcChannels.AiReplyTest, async (_e, prompt?: string) => {
+    const reply = await aiReply.test(prompt || '用一句话介绍你自己')
+    return { reply }
   })
 
   // ─── 规则 ────────────────────────────────────────────────────

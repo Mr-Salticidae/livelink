@@ -100,6 +100,11 @@ export const IpcChannels = {
   PetTop: 'pet:top',
   PetUserGet: 'pet:user:get',
 
+  // AI 智能回复（DeepSeek，主播自备 Key）
+  AiReplyConfigGet: 'ai-reply:config:get',
+  AiReplyConfigPatch: 'ai-reply:config:patch',
+  AiReplyTest: 'ai-reply:test',
+
   // 日志（主→渲染 push）
   LogAppend: 'log:append',
   LogRecent: 'log:recent',

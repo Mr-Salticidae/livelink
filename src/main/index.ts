@@ -22,6 +22,7 @@ import { WalletStore } from './services/wallet-store'
 import { WalletDepositService } from './services/wallet-deposit'
 import { PetStore } from './services/pet-store'
 import { PetService } from './services/pets'
+import { AiReplyService } from './services/ai-reply'
 import { AppConfig } from './config/store'
 import { registerIpcHandlers } from './ipc'
 import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
@@ -84,6 +85,13 @@ const pets = new PetService({
   getConfig: () => config.getPets()
 })
 pets.attach()
+const aiReply = new AiReplyService({
+  bus,
+  tts: ttsPlayer,
+  log,
+  getConfig: () => config.getAiReply()
+})
+aiReply.attach()
 overlayController.registerSocketInitPusher((socket) => {
   const state = pets.getState()
   socket.emit('pet.dock.update', {
@@ -248,6 +256,7 @@ app.whenReady().then(async () => {
     horseRace,
     guessing,
     pets,
+    aiReply,
     wallet,
     config,
     log,
@@ -319,6 +328,11 @@ async function cleanup(): Promise<void> {
     pets.dispose()
   } catch (err) {
     console.error('[main] pets dispose failed', err)
+  }
+  try {
+    aiReply.dispose()
+  } catch (err) {
+    console.error('[main] aiReply dispose failed', err)
   }
   ttsPlayer.dispose()
   engine.detach()

@@ -10,6 +10,7 @@ const items: { key: PageKey; label: string; icon: string }[] = [
   { key: 'horserace', label: '赛马', icon: '🐎' },
   { key: 'guessing', label: '竞猜', icon: '🎲' },
   { key: 'pets', label: '宠物', icon: '🐾' },
+  { key: 'ai', label: 'AI 回复', icon: '🤖' },
   { key: 'logs', label: '日志', icon: '📝' }
 ]
 

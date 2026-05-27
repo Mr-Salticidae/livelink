@@ -7,6 +7,7 @@ export interface TTSConfig {
   voice: string
   rate: string // edge-tts 风格：'+0%' / '-20%'
   volume: string // edge-tts 风格：'+0%' / '-20%'
+  style?: 'normal' | 'mambo'
   // 分事件音色覆盖。key 是 EventKind，value 是 voice 字符串。
   // 空 / undefined / 空字符串 → 用全局 voice。rate/volume 不分事件（共用全局）
   perEventVoice?: Partial<Record<EventKind, string>>
@@ -17,6 +18,7 @@ export const DEFAULT_TTS_CONFIG: TTSConfig = {
   voice: 'zh-CN-XiaoxiaoNeural',
   rate: '+0%',
   volume: '+0%',
+  style: 'normal',
   perEventVoice: {}
 }
 
@@ -89,7 +91,8 @@ export class TTSPlayer {
     if (!this.config.enabled) return
     const text = (rawText ?? '').trim()
     if (!text) return
-    const truncated = text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) : text
+    const styled = this.applyStyle(text)
+    const truncated = styled.length > MAX_TEXT_LENGTH ? styled.slice(0, MAX_TEXT_LENGTH) : styled
     const voice = this.resolveVoice(options)
 
     if (this.queue.length >= MAX_QUEUE_LENGTH) {
@@ -100,7 +103,7 @@ export class TTSPlayer {
   }
 
   async test(text: string = '你好，我是 LiveLink，弹幕助手', voiceOverride?: string): Promise<void> {
-    await this.speak(text, this.resolveVoice({ voiceOverride }))
+    await this.speak(this.applyStyle(text), this.resolveVoice({ voiceOverride }))
   }
 
   /** 按 options 解析 voice：voiceOverride > perEventVoice[eventKind] > 全局 voice */
@@ -111,6 +114,14 @@ export class TTSPlayer {
       if (perEvent && perEvent.length > 0) return perEvent
     }
     return this.config.voice
+  }
+
+  private applyStyle(text: string): string {
+    if (this.config.style !== 'mambo') return text
+    const clean = text.replace(/[~～]+/g, '').trim()
+    if (!clean) return text
+    if (/^(曼波|芜湖|哎哟)/.test(clean)) return clean
+    return `曼波，${clean}，芜湖`
   }
 
   dispose(): void {

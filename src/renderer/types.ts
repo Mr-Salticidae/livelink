@@ -9,8 +9,10 @@ import type {
   PetState,
   UserPet
 } from '../shared/pets'
+import type { AiReplyPublicConfig } from '../shared/ai-reply'
 
 export type {
+  AiReplyPublicConfig,
   PetConfig,
   PetDisplayItem,
   PetOwner,
@@ -72,6 +74,7 @@ export interface TTSConfig {
   voice: string
   rate: string
   volume: string
+  style?: 'normal' | 'mambo'
   // 分事件音色覆盖（key 是 EventKind，value 是 voice）
   perEventVoice?: Partial<Record<EventKind, string>>
 }
@@ -408,6 +411,11 @@ export interface ApiSurface {
   petTop: (limit?: number) => Promise<PetDisplayItem[]>
   petUserGet: (uid: string, uname: string) => Promise<PetOwner | null>
   onPetStatus: (cb: (s: PetState) => void) => () => void
+
+  // AI 智能回复
+  aiReplyConfigGet: () => Promise<AiReplyPublicConfig>
+  aiReplyConfigPatch: (patch: Partial<AiReplyPublicConfig> & { apiKey?: string }) => Promise<AiReplyPublicConfig>
+  aiReplyTest: (prompt?: string) => Promise<{ reply: string }>
 
   ruleList: () => Promise<Rule[]>
   ruleUpsert: (rule: Rule) => Promise<Rule[]>

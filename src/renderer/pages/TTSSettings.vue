@@ -17,6 +17,7 @@ const localConfig = ref({
   voice: 'zh-CN-XiaoxiaoNeural',
   rate: '+0%',
   volume: '+0%',
+  style: 'normal' as 'normal' | 'mambo',
   perEventVoice: {} as Partial<Record<EventKind, string>>
 })
 const saving = ref(false)
@@ -29,6 +30,7 @@ watch(
     if (c) {
       localConfig.value = {
         ...c,
+        style: c.style ?? 'normal',
         perEventVoice: { ...(c.perEventVoice ?? {}) }
       }
     }
@@ -157,6 +159,29 @@ async function test(): Promise<void> {
         >
           <option v-for="v in voices" :key="v.value" :value="v.value">{{ v.label }}</option>
         </select>
+      </label>
+
+      <label class="block">
+        <span class="mb-1 block text-sm text-slate-300">播报风格</span>
+        <select
+          v-model="localConfig.style"
+          @change="
+            () => {
+              if (localConfig.style === 'mambo') {
+                localConfig.voice = 'zh-CN-YunxiaNeural'
+                localConfig.rate = '+15%'
+              }
+              persist()
+            }
+          "
+          class="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+        >
+          <option value="normal">标准播报</option>
+          <option value="mambo">曼波播报 · 轻快抽象</option>
+        </select>
+        <p class="mt-1 text-xs text-slate-500">
+          曼波播报是节奏和口癖预设，不克隆具体人物声线；会推荐云夏音色和较快语速。
+        </p>
       </label>
 
       <!-- 语速 -->

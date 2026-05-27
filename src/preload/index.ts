@@ -184,6 +184,12 @@ const api = {
     return () => ipcRenderer.removeListener(IpcChannels.PetStatusUpdate, handler)
   },
 
+  // AI 智能回复
+  aiReplyConfigGet: () => ipcRenderer.invoke(IpcChannels.AiReplyConfigGet),
+  aiReplyConfigPatch: (patch: unknown) =>
+    ipcRenderer.invoke(IpcChannels.AiReplyConfigPatch, cleanForIpc(patch)),
+  aiReplyTest: (prompt?: string) => ipcRenderer.invoke(IpcChannels.AiReplyTest, prompt),
+
   // 日志
   logRecent: (limit?: number) => ipcRenderer.invoke(IpcChannels.LogRecent, limit),
   logClear: () => ipcRenderer.invoke(IpcChannels.LogClear),

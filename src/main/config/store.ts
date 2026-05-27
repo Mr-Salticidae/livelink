@@ -4,6 +4,13 @@ import { defaultRules } from '../rules/defaults'
 import type { Rule } from '../rules/types'
 import { DEFAULT_TTS_CONFIG, VALID_VOICE_VALUES, type TTSConfig } from '../actions/tts'
 import { DEFAULT_PET_CONFIG, clampPetConfig, type PetConfig } from '../../shared/pets'
+import {
+  DEFAULT_AI_REPLY_CONFIG,
+  sanitizeAiReplyConfig,
+  type AiReplyConfig,
+  type AiReplyPublicConfig,
+  toPublicAiReplyConfig
+} from '../../shared/ai-reply'
 
 // B 站登录态。SESSDATA 是 cookie，2023 年 7 月起 B 站对游客限制 DANMU_MSG 推送，需要登录态。
 // 仅本地存储，不上传。sessdata 用 Electron safeStorage 加密（Win 上走 DPAPI，与当前用户账号绑定），
@@ -122,6 +129,7 @@ export interface AppConfigSchema {
   horseRace: HorseRacePreset
   guessing: GuessingGlobalConfig
   pets: PetConfig
+  aiReply: AiReplyConfig
 }
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
@@ -234,7 +242,8 @@ const defaults: AppConfigSchema = {
   voting: { ...DEFAULT_VOTING_PRESET },
   horseRace: { ...DEFAULT_HORSE_RACE_PRESET, horses: [...DEFAULT_HORSE_RACE_PRESET.horses] },
   guessing: { ...DEFAULT_GUESSING, presets: DEFAULT_GUESSING.presets.map((p) => ({ ...p, options: [...p.options] })) },
-  pets: { ...DEFAULT_PET_CONFIG }
+  pets: { ...DEFAULT_PET_CONFIG },
+  aiReply: { ...DEFAULT_AI_REPLY_CONFIG }
 }
 
 export class AppConfig {
@@ -284,6 +293,10 @@ export class AppConfig {
     let dirty = false
     if (!stored.perEventVoice) {
       stored.perEventVoice = {}
+      dirty = true
+    }
+    if (!stored.style) {
+      stored.style = 'normal'
       dirty = true
     }
     // 校验 voice：老配置可能存了 0.5.3 之前的无效 voice (晓梦 / 晓双 / 晓萱)，
@@ -521,6 +534,27 @@ export class AppConfig {
     const next = clampPetConfig({ ...this.getPets(), ...patch })
     this.setPets(next)
     return next
+  }
+
+  // AI 智能回复（DeepSeek，主播自备 Key）
+  getAiReply(): AiReplyConfig {
+    return sanitizeAiReplyConfig(this.store.get('aiReply') as Partial<AiReplyConfig> | undefined ?? DEFAULT_AI_REPLY_CONFIG)
+  }
+  getAiReplyPublic(): AiReplyPublicConfig {
+    return toPublicAiReplyConfig(this.getAiReply())
+  }
+  setAiReply(config: AiReplyConfig): void {
+    this.store.set('aiReply', sanitizeAiReplyConfig(config))
+  }
+  patchAiReply(patch: Partial<AiReplyConfig>): AiReplyPublicConfig {
+    const current = this.getAiReply()
+    const merged = {
+      ...current,
+      ...patch,
+      apiKey: patch.apiKey === undefined ? current.apiKey : patch.apiKey
+    }
+    this.setAiReply(merged)
+    return this.getAiReplyPublic()
   }
 
   // 互动投票 preset
