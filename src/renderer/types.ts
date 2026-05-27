@@ -1,4 +1,25 @@
 // 渲染端用到的类型镜像（避免直接 import 主进程文件）
+import type {
+  PetConfig,
+  PetDisplayItem,
+  PetOwner,
+  PetSpecies,
+  PetSpeciesId,
+  PetStage,
+  PetState,
+  UserPet
+} from '../shared/pets'
+
+export type {
+  PetConfig,
+  PetDisplayItem,
+  PetOwner,
+  PetSpecies,
+  PetSpeciesId,
+  PetStage,
+  PetState,
+  UserPet
+}
 
 export type ConnectionStatus =
   | { state: 'idle' }
@@ -376,6 +397,17 @@ export interface ApiSurface {
   guessingPatchConfig: (patch: Partial<GuessingGlobalConfig>) => Promise<GuessingGlobalConfig>
   guessingTopBalance: (limit?: number) => Promise<WalletEntry[]>
   onGuessingStatus: (cb: (s: GuessingState) => void) => () => void
+
+  // 养宠
+  petStatus: () => Promise<PetState>
+  petConfigGet: () => Promise<PetConfig>
+  petConfigPatch: (patch: Partial<PetConfig>) => Promise<PetConfig>
+  petAdopt: (speciesInput: string) => Promise<PetOwner>
+  petFeed: (uid: string, uname: string, amount?: number) => Promise<PetOwner>
+  petSetPrimary: (uid: string, uname: string, input: string) => Promise<PetOwner>
+  petTop: (limit?: number) => Promise<PetDisplayItem[]>
+  petUserGet: (uid: string, uname: string) => Promise<PetOwner | null>
+  onPetStatus: (cb: (s: PetState) => void) => () => void
 
   ruleList: () => Promise<Rule[]>
   ruleUpsert: (rule: Rule) => Promise<Rule[]>

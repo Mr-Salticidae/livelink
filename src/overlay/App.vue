@@ -18,6 +18,9 @@ import GuessingCard from './components/GuessingCard.vue'
 import GuessingResultCard from './components/GuessingResultCard.vue'
 import IntroBanner from './components/IntroBanner.vue'
 import Celebration from './components/Celebration.vue'
+import PetDock from './components/PetDock.vue'
+import PetCard from './components/PetCard.vue'
+import type { PetDisplayItem } from '../shared/pets'
 
 interface BoardPosition { x: number; y: number }
 interface BoardConfig {
@@ -179,6 +182,13 @@ interface SuperChatItem {
   isLegendary: boolean
 }
 
+interface PetCardItem {
+  id: string
+  title: string
+  item: PetDisplayItem
+  mode: 'normal' | 'level' | 'evolve'
+}
+
 const MAX_ACTIVE_GIFTS = 3
 const GIFT_VISIBLE_MS = 4000
 const ENTER_VISIBLE_MS = 4500
@@ -207,6 +217,10 @@ const activeHorseRaceResult = ref<HorseRaceResult | null>(null)
 const GUESSING_RESULT_MS = 10_000
 const activeGuessing = ref<GuessingActive | null>(null)
 const activeGuessingResult = ref<GuessingResult | null>(null)
+const petDockEnabled = ref(false)
+const petDockItems = ref<PetDisplayItem[]>([])
+const activePetCard = ref<PetCardItem | null>(null)
+const PET_CARD_VISIBLE_MS = 6500
 
 // 开场招牌：游戏启动那 2.4 秒显示
 interface IntroState {
@@ -723,6 +737,39 @@ onMounted(() => {
     activeGuessing.value = null
   })
 
+  on<OverlayPayload>('pet.dock.update', (msg) => {
+    const x = msg.extra as { enabled?: boolean; dock?: PetDisplayItem[] } | undefined
+    petDockEnabled.value = Boolean(x?.enabled)
+    petDockItems.value = Array.isArray(x?.dock) ? x.dock : []
+  })
+
+  function showPetCard(title: string, item: PetDisplayItem, mode: PetCardItem['mode']): void {
+    const card: PetCardItem = { id: uid(), title, item, mode }
+    activePetCard.value = card
+    window.setTimeout(() => {
+      if (activePetCard.value?.id === card.id) activePetCard.value = null
+    }, PET_CARD_VISIBLE_MS)
+  }
+
+  on<OverlayPayload>('pet.card', (msg) => {
+    const x = msg.extra as { title?: string; item?: PetDisplayItem } | undefined
+    if (!x?.item) return
+    showPetCard(x.title ?? '宠物', x.item, 'normal')
+  })
+
+  on<OverlayPayload>('pet.level-up', (msg) => {
+    const x = msg.extra as { item?: PetDisplayItem } | undefined
+    if (!x?.item) return
+    showPetCard('升级啦', x.item, 'level')
+  })
+
+  on<OverlayPayload>('pet.evolve', (msg) => {
+    const x = msg.extra as { item?: PetDisplayItem } | undefined
+    if (!x?.item) return
+    showPetCard('进化啦', x.item, 'evolve')
+    triggerCelebration()
+  })
+
   // SuperChat 横幅：系统级 broadcast，不依赖规则引擎。按价位放顶部 / 中央
   on<OverlayPayload>('super.chat.banner', (msg) => {
     const ev = msg.event
@@ -1032,6 +1079,27 @@ onMounted(() => {
         :counts="activeVotingResult.counts"
         :total-votes="activeVotingResult.totalVotes"
         :winner-key="activeVotingResult.winnerKey"
+      />
+    </div>
+
+    <!-- 底部常驻宠物栏 -->
+    <div
+      v-if="petDockEnabled && petDockItems.length > 0"
+      class="absolute bottom-0 left-1/2 z-20 -translate-x-1/2"
+    >
+      <PetDock :items="petDockItems" />
+    </div>
+
+    <!-- 宠物事件卡片 -->
+    <div
+      v-if="activePetCard"
+      class="absolute bottom-28 left-1/2 z-40 -translate-x-1/2"
+    >
+      <PetCard
+        :key="activePetCard.id"
+        :title="activePetCard.title"
+        :item="activePetCard.item"
+        :mode="activePetCard.mode"
       />
     </div>
 

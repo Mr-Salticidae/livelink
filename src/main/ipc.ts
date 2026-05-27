@@ -15,8 +15,10 @@ import type { HorseRaceService, HorseRaceConfig } from './services/horse-race'
 import { setHorseRaceInitialBalanceFallback } from './services/horse-race'
 import type { GuessingService, GuessingConfig } from './services/guessing'
 import { setInitialBalanceFallback } from './services/guessing'
+import type { PetService } from './services/pets'
 import type { WalletStore } from './services/wallet-store'
 import type { GuessingGlobalConfig } from './config/store'
+import type { PetConfig } from '../shared/pets'
 import { toFriendlyError } from './errors/friendly'
 
 export interface IpcDeps {
@@ -31,6 +33,7 @@ export interface IpcDeps {
   voting: VotingService
   horseRace: HorseRaceService
   guessing: GuessingService
+  pets: PetService
   wallet: WalletStore
   config: AppConfig
   log: LogSink
@@ -49,6 +52,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     voting,
     horseRace,
     guessing,
+    pets,
     wallet,
     config,
     log,
@@ -376,6 +380,41 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   guessing.onStatusChange((s) => {
     deps.getMainWindow()?.webContents.send(IpcChannels.GuessingStatusUpdate, s)
+  })
+
+  // ─── 养宠（哈松币长期养成） ─────────────────────────────────
+  ipcMain.handle(IpcChannels.PetStatus, () => pets.getState())
+  ipcMain.handle(IpcChannels.PetConfigGet, () => config.getPets())
+  ipcMain.handle(IpcChannels.PetConfigPatch, (_e, patch: Partial<PetConfig>) => {
+    const next = config.patchPets(patch)
+    pets.pushDock()
+    deps.getMainWindow()?.webContents.send(IpcChannels.PetStatusUpdate, pets.getState())
+    return next
+  })
+  ipcMain.handle(IpcChannels.PetAdopt, (_e, speciesInput: string) => {
+    const rid = adapter.currentRoomId
+    if (rid == null) throw new Error('直播间未连接')
+    const r = pets.adopt('0', '主播预览', speciesInput || '1')
+    if (!r.ok) throw new Error(r.error)
+    return r.owner
+  })
+  ipcMain.handle(IpcChannels.PetFeed, (_e, uid: string, uname: string, amount?: number) => {
+    const r = pets.feed(uid, uname, amount)
+    if (!r.ok) throw new Error(r.error)
+    return r.owner
+  })
+  ipcMain.handle(IpcChannels.PetSetPrimary, (_e, uid: string, uname: string, input: string) => {
+    const r = pets.setPrimary(uid, uname, input)
+    if (!r.ok) throw new Error(r.error)
+    return r.owner
+  })
+  ipcMain.handle(IpcChannels.PetTop, (_e, limit?: number) => pets.top(limit ?? 20))
+  ipcMain.handle(IpcChannels.PetUserGet, (_e, uid: string, uname: string) =>
+    pets.getUser(uid, uname)
+  )
+
+  pets.onStatusChange((s) => {
+    deps.getMainWindow()?.webContents.send(IpcChannels.PetStatusUpdate, s)
   })
 
   // ─── 规则 ────────────────────────────────────────────────────

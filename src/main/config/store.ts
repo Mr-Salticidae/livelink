@@ -3,6 +3,7 @@ import Store from 'electron-store'
 import { defaultRules } from '../rules/defaults'
 import type { Rule } from '../rules/types'
 import { DEFAULT_TTS_CONFIG, VALID_VOICE_VALUES, type TTSConfig } from '../actions/tts'
+import { DEFAULT_PET_CONFIG, clampPetConfig, type PetConfig } from '../../shared/pets'
 
 // B 站登录态。SESSDATA 是 cookie，2023 年 7 月起 B 站对游客限制 DANMU_MSG 推送，需要登录态。
 // 仅本地存储，不上传。sessdata 用 Electron safeStorage 加密（Win 上走 DPAPI，与当前用户账号绑定），
@@ -120,6 +121,7 @@ export interface AppConfigSchema {
   voting: VotingPreset
   horseRace: HorseRacePreset
   guessing: GuessingGlobalConfig
+  pets: PetConfig
 }
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
@@ -231,7 +233,8 @@ const defaults: AppConfigSchema = {
   lottery: { ...DEFAULT_LOTTERY_PRESET },
   voting: { ...DEFAULT_VOTING_PRESET },
   horseRace: { ...DEFAULT_HORSE_RACE_PRESET, horses: [...DEFAULT_HORSE_RACE_PRESET.horses] },
-  guessing: { ...DEFAULT_GUESSING, presets: DEFAULT_GUESSING.presets.map((p) => ({ ...p, options: [...p.options] })) }
+  guessing: { ...DEFAULT_GUESSING, presets: DEFAULT_GUESSING.presets.map((p) => ({ ...p, options: [...p.options] })) },
+  pets: { ...DEFAULT_PET_CONFIG }
 }
 
 export class AppConfig {
@@ -505,6 +508,19 @@ export class AppConfig {
   }
   setHorseRacePreset(preset: HorseRacePreset): void {
     this.store.set('horseRace', preset)
+  }
+
+  // 养宠
+  getPets(): PetConfig {
+    return clampPetConfig(this.store.get('pets') as Partial<PetConfig> | undefined ?? DEFAULT_PET_CONFIG)
+  }
+  setPets(config: PetConfig): void {
+    this.store.set('pets', clampPetConfig(config))
+  }
+  patchPets(patch: Partial<PetConfig>): PetConfig {
+    const next = clampPetConfig({ ...this.getPets(), ...patch })
+    this.setPets(next)
+    return next
   }
 
   // 互动投票 preset

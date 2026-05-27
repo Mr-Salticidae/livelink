@@ -9,6 +9,7 @@ import Lottery from './pages/Lottery.vue'
 import Voting from './pages/Voting.vue'
 import HorseRace from './pages/HorseRace.vue'
 import Guessing from './pages/Guessing.vue'
+import Pets from './pages/Pets.vue'
 import Logs from './pages/Logs.vue'
 import { currentPage, loadInitialData } from './store'
 
@@ -29,6 +30,7 @@ onMounted(() => {
         <Voting v-else-if="currentPage === 'voting'" />
         <HorseRace v-else-if="currentPage === 'horserace'" />
         <Guessing v-else-if="currentPage === 'guessing'" />
+        <Pets v-else-if="currentPage === 'pets'" />
         <Logs v-else-if="currentPage === 'logs'" />
       </main>
     </div>

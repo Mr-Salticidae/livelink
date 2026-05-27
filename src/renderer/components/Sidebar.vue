@@ -9,6 +9,7 @@ const items: { key: PageKey; label: string; icon: string }[] = [
   { key: 'voting', label: '投票', icon: '📊' },
   { key: 'horserace', label: '赛马', icon: '🐎' },
   { key: 'guessing', label: '竞猜', icon: '🎲' },
+  { key: 'pets', label: '宠物', icon: '🐾' },
   { key: 'logs', label: '日志', icon: '📝' }
 ]
 

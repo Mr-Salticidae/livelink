@@ -8,11 +8,13 @@ import type {
   LogEntry,
   LotteryState,
   OverlayState,
+  PetState,
   Rule,
   TTSConfig,
   VoiceOption,
   VotingState
 } from './types'
+import { DEFAULT_PET_CONFIG } from '../shared/pets'
 
 export const status = ref<ConnectionStatus>({ state: 'idle' })
 export const room = ref<{ id: string }>({ id: '' })
@@ -31,6 +33,12 @@ export const lotteryState = ref<LotteryState>({ phase: 'idle' })
 export const votingState = ref<VotingState>({ phase: 'idle' })
 export const horseRaceState = ref<HorseRaceState>({ phase: 'idle' })
 export const guessingState = ref<GuessingState>({ phase: 'idle' })
+export const petState = ref<PetState>({
+  config: { ...DEFAULT_PET_CONFIG },
+  totalOwners: 0,
+  totalPets: 0,
+  dock: []
+})
 export const danmuBoard = ref<DanmuBoardConfig>({
   enabled: false,
   position: { x: 2, y: 76 },
@@ -49,6 +57,7 @@ export type PageKey =
   | 'voting'
   | 'horserace'
   | 'guessing'
+  | 'pets'
   | 'logs'
 export const currentPage = ref<PageKey>('home')
 
@@ -132,6 +141,8 @@ export async function loadInitialData(): Promise<void> {
   await initHorseRace()
   // 竞猜初始化
   await initGuessing()
+  // 养宠初始化
+  await initPets()
 
   // OBS 弹幕信息板配置初始化
   try {
@@ -223,6 +234,17 @@ export async function initGuessing(): Promise<void> {
   }
   window.api.onGuessingStatus((s) => {
     guessingState.value = s
+  })
+}
+
+export async function initPets(): Promise<void> {
+  try {
+    petState.value = await window.api.petStatus()
+  } catch (err) {
+    console.error('petStatus failed', err)
+  }
+  window.api.onPetStatus((s) => {
+    petState.value = s
   })
 }
 

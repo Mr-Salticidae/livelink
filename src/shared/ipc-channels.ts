@@ -89,6 +89,17 @@ export const IpcChannels = {
   GuessingQueryWallet: 'guessing:query-wallet',
   GuessingTopBalance: 'guessing:top-balance',
 
+  // 养宠
+  PetStatus: 'pet:status',
+  PetStatusUpdate: 'pet:status-update',
+  PetConfigGet: 'pet:config:get',
+  PetConfigPatch: 'pet:config:patch',
+  PetAdopt: 'pet:adopt',
+  PetFeed: 'pet:feed',
+  PetSetPrimary: 'pet:set-primary',
+  PetTop: 'pet:top',
+  PetUserGet: 'pet:user:get',
+
   // 日志（主→渲染 push）
   LogAppend: 'log:append',
   LogRecent: 'log:recent',

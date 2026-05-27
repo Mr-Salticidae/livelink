@@ -4,6 +4,7 @@ import type { OverlayBroadcaster } from './actions/overlay'
 import type { OverlayServer } from './overlay-server/server'
 import type { GiftService } from './services/gift-config'
 import type { OverlayState } from '../shared/ipc-channels'
+import type { Socket } from 'socket.io'
 
 export class OverlayController {
   private fatalError: string | null = null
@@ -17,6 +18,7 @@ export class OverlayController {
   // 装修预览模式：开启时 overlay 端用假弹幕把板子填满，显示满载效果。
   // 非持久（重启即关），调好画面后关掉就恢复真实状态
   private previewFull = false
+  private socketInitPushers = new Set<(socket: Socket) => void>()
 
   constructor(
     private server: OverlayServer,
@@ -76,6 +78,11 @@ export class OverlayController {
     return this.previewFull
   }
 
+  registerSocketInitPusher(cb: (socket: Socket) => void): () => void {
+    this.socketInitPushers.add(cb)
+    return () => this.socketInitPushers.delete(cb)
+  }
+
   async start(): Promise<void> {
     try {
       const port = await this.server.start({
@@ -91,6 +98,7 @@ export class OverlayController {
             socket.emit('danmu.board.config', this.boardConfigMessage())
             // bootId 随同一可靠通道下发（connect + 端侧 request 兜底）
             socket.emit('overlay.hello', { bootId: this.bootId })
+            for (const push of this.socketInitPushers) push(socket)
           }
           pushConfig()
           socket.on('danmu.board.config:request', pushConfig)

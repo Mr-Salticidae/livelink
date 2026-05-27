@@ -166,6 +166,24 @@ const api = {
     return () => ipcRenderer.removeListener(IpcChannels.GuessingStatusUpdate, handler)
   },
 
+  // 养宠
+  petStatus: () => ipcRenderer.invoke(IpcChannels.PetStatus),
+  petConfigGet: () => ipcRenderer.invoke(IpcChannels.PetConfigGet),
+  petConfigPatch: (patch: unknown) =>
+    ipcRenderer.invoke(IpcChannels.PetConfigPatch, cleanForIpc(patch)),
+  petAdopt: (speciesInput: string) => ipcRenderer.invoke(IpcChannels.PetAdopt, speciesInput),
+  petFeed: (uid: string, uname: string, amount?: number) =>
+    ipcRenderer.invoke(IpcChannels.PetFeed, uid, uname, amount),
+  petSetPrimary: (uid: string, uname: string, input: string) =>
+    ipcRenderer.invoke(IpcChannels.PetSetPrimary, uid, uname, input),
+  petTop: (limit?: number) => ipcRenderer.invoke(IpcChannels.PetTop, limit),
+  petUserGet: (uid: string, uname: string) => ipcRenderer.invoke(IpcChannels.PetUserGet, uid, uname),
+  onPetStatus: (cb: (s: unknown) => void) => {
+    const handler = (_: IpcRendererEvent, s: unknown): void => cb(s)
+    ipcRenderer.on(IpcChannels.PetStatusUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.PetStatusUpdate, handler)
+  },
+
   // 日志
   logRecent: (limit?: number) => ipcRenderer.invoke(IpcChannels.LogRecent, limit),
   logClear: () => ipcRenderer.invoke(IpcChannels.LogClear),

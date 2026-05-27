@@ -20,6 +20,8 @@ import { HorseRaceService } from './services/horse-race'
 import { GuessingService } from './services/guessing'
 import { WalletStore } from './services/wallet-store'
 import { WalletDepositService } from './services/wallet-deposit'
+import { PetStore } from './services/pet-store'
+import { PetService } from './services/pets'
 import { AppConfig } from './config/store'
 import { registerIpcHandlers } from './ipc'
 import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
@@ -51,6 +53,7 @@ const danmuOverlay = new DanmuOverlayWindow(config, bus, join(__dirname, '../ren
 const lottery = new LotteryService(bus, overlayBroadcaster)
 const voting = new VotingService(bus, overlayBroadcaster)
 const wallet = new WalletStore()
+const petStore = new PetStore()
 const horseRace = new HorseRaceService(
   bus,
   overlayBroadcaster,
@@ -70,6 +73,35 @@ const walletDeposit = new WalletDepositService({
   getCurrentRoomId: () => adapter.currentRoomId
 })
 walletDeposit.attach()
+const pets = new PetService({
+  bus,
+  overlay: overlayBroadcaster,
+  store: petStore,
+  wallet,
+  getCurrentRoomId: () => adapter.currentRoomId,
+  getInitialBalance: () => config.getGuessing().initialBalance,
+  getCurrencyName: () => config.getGuessing().currencyName,
+  getConfig: () => config.getPets()
+})
+pets.attach()
+overlayController.registerSocketInitPusher((socket) => {
+  const state = pets.getState()
+  socket.emit('pet.dock.update', {
+    kind: 'pet.dock.update',
+    event: {
+      kind: 'viewer.enter',
+      platform: 'bilibili',
+      timestamp: Date.now(),
+      user: { uid: '0', uname: '宠物系统' },
+      payload: {}
+    },
+    extra: {
+      enabled: state.config.enabled,
+      displayLimit: state.config.displayLimit,
+      dock: state.dock
+    }
+  })
+})
 const dispatcher = new ActionDispatcher({
   tts: ttsPlayer,
   overlay: overlayBroadcaster,
@@ -215,6 +247,7 @@ app.whenReady().then(async () => {
     voting,
     horseRace,
     guessing,
+    pets,
     wallet,
     config,
     log,
@@ -281,6 +314,11 @@ async function cleanup(): Promise<void> {
     guessing.dispose()
   } catch (err) {
     console.error('[main] guessing dispose failed', err)
+  }
+  try {
+    pets.dispose()
+  } catch (err) {
+    console.error('[main] pets dispose failed', err)
   }
   ttsPlayer.dispose()
   engine.detach()
