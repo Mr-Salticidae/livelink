@@ -77,6 +77,35 @@ onBeforeUnmount(() => {
   unsubPinned?.()
   unsubRoomStats?.()
 })
+
+// 自定义缩放：用 Pointer Capture 而不是 document.mouseup。
+// 主进程每 16ms 用 setBounds 让窗口边缘追光标，光标可能短暂落在窗口外，
+// 此时 document 收不到 mouseup → resize 停不下来、窗口黏着光标乱跑。
+// setPointerCapture 让后续 pointerup 一定回到该 handle（即使指针移出窗口），可靠停止。
+function startResize(e: PointerEvent, dir: string): void {
+  const el = e.currentTarget as HTMLElement
+  try {
+    el.setPointerCapture(e.pointerId)
+  } catch {
+    /* 某些环境不支持时退化为普通监听，仍有主进程兜底超时 */
+  }
+  const onUp = (): void => {
+    el.removeEventListener('pointerup', onUp)
+    el.removeEventListener('pointercancel', onUp)
+    window.removeEventListener('pointerup', onUp)
+    try {
+      el.releasePointerCapture(e.pointerId)
+    } catch {
+      /* 已释放则忽略 */
+    }
+    void window.api?.danmuOverlayResizeStop?.()
+  }
+  el.addEventListener('pointerup', onUp)
+  el.addEventListener('pointercancel', onUp)
+  // window 级兜底：万一 capture 异常，指针在窗口内松开时这里也能停（stop 幂等）
+  window.addEventListener('pointerup', onUp)
+  void window.api?.danmuOverlayResizeStart?.(dir)
+}
 </script>
 
 <template>
@@ -85,6 +114,17 @@ onBeforeUnmount(() => {
     :class="{ pinned }"
     :style="{ '--font-size': settings.fontSize + 'px' }"
   >
+    <!-- 自定义缩放拖手（transparent frameless 窗口在 Windows 上只能从右下角 resize，手动补全四边） -->
+    <template v-if="!pinned">
+      <div class="resize-handle resize-n"  @pointerdown.stop="startResize($event, 'n')"></div>
+      <div class="resize-handle resize-s"  @pointerdown.stop="startResize($event, 's')"></div>
+      <div class="resize-handle resize-w"  @pointerdown.stop="startResize($event, 'w')"></div>
+      <div class="resize-handle resize-e"  @pointerdown.stop="startResize($event, 'e')"></div>
+      <div class="resize-handle resize-nw" @pointerdown.stop="startResize($event, 'nw')"></div>
+      <div class="resize-handle resize-ne" @pointerdown.stop="startResize($event, 'ne')"></div>
+      <div class="resize-handle resize-sw" @pointerdown.stop="startResize($event, 'sw')"></div>
+      <div class="resize-handle resize-se" @pointerdown.stop="startResize($event, 'se')"></div>
+    </template>
     <!-- 标题栏：未钉住时可拖动；钉住后只剩图钉按钮可点 -->
     <header class="title-bar" :class="{ 'title-bar-pinned': pinned }">
       <span v-if="!pinned" class="title">LiveLink · 弹幕</span>
@@ -300,4 +340,19 @@ onBeforeUnmount(() => {
   text-align: center;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
 }
+
+/* 缩放拖手：贴在窗口四边 / 四角，仅未钉住时显示 */
+.resize-handle {
+  position: fixed;
+  z-index: 9999;
+  -webkit-app-region: no-drag;
+}
+.resize-n  { top: 0;    left: 6px;  right: 6px;  height: 5px; cursor: n-resize; }
+.resize-s  { bottom: 0; left: 6px;  right: 6px;  height: 5px; cursor: s-resize; }
+.resize-w  { left: 0;   top: 6px;   bottom: 6px; width: 5px;  cursor: w-resize; }
+.resize-e  { right: 0;  top: 6px;   bottom: 6px; width: 5px;  cursor: e-resize; }
+.resize-nw { top: 0;    left: 0;    width: 8px;  height: 8px; cursor: nw-resize; }
+.resize-ne { top: 0;    right: 0;   width: 8px;  height: 8px; cursor: ne-resize; }
+.resize-sw { bottom: 0; left: 0;    width: 8px;  height: 8px; cursor: sw-resize; }
+.resize-se { bottom: 0; right: 0;   width: 8px;  height: 8px; cursor: se-resize; }
 </style>

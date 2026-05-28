@@ -41,6 +41,8 @@ export const IpcChannels = {
   DanmuOverlayGetSettings: 'danmu-overlay:get-settings',
   DanmuOverlayEvent: 'danmu-overlay:event', // 主→子窗 push 弹幕 / 礼物事件
   DanmuOverlayRoomStats: 'danmu-overlay:room-stats', // 主→子窗 push 在线人数
+  DanmuOverlayResizeStart: 'danmu-overlay:resize-start', // 子窗→主：开始自定义拖拽缩放
+  DanmuOverlayResizeStop: 'danmu-overlay:resize-stop', // 子窗→主：停止自定义拖拽缩放
 
   // OBS 弹幕信息板
   DanmuBoardGet: 'danmu-board:get',

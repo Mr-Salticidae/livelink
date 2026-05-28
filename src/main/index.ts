@@ -106,6 +106,7 @@ overlayController.registerSocketInitPusher((socket) => {
     extra: {
       enabled: state.config.enabled,
       displayLimit: state.config.displayLimit,
+      dockOffsetY: state.config.dockOffsetY ?? 0,
       dock: state.dock
     }
   })
@@ -243,6 +244,7 @@ app.whenReady().then(async () => {
     console.error('[main] overlay start failed (fatal recorded)', err)
   }
 
+  danmuOverlay.registerResizeIpc()
   registerIpcHandlers({
     getMainWindow: () => mainWindow,
     adapter,

@@ -220,6 +220,7 @@ const activeGuessing = ref<GuessingActive | null>(null)
 const activeGuessingResult = ref<GuessingResult | null>(null)
 const petDockEnabled = ref(false)
 const petDockItems = ref<PetDisplayItem[]>([])
+const petDockOffsetY = ref(0)
 const activePetCard = ref<PetCardItem | null>(null)
 const PET_CARD_VISIBLE_MS = 6500
 const overlayThemeId = ref<OverlayThemeId>(DEFAULT_OVERLAY_THEME.id)
@@ -740,9 +741,10 @@ onMounted(() => {
   })
 
   on<OverlayPayload>('pet.dock.update', (msg) => {
-    const x = msg.extra as { enabled?: boolean; dock?: PetDisplayItem[] } | undefined
+    const x = msg.extra as { enabled?: boolean; dock?: PetDisplayItem[]; dockOffsetY?: number } | undefined
     petDockEnabled.value = Boolean(x?.enabled)
     petDockItems.value = Array.isArray(x?.dock) ? x.dock : []
+    petDockOffsetY.value = typeof x?.dockOffsetY === 'number' ? x.dockOffsetY : 0
   })
 
   function showPetCard(title: string, item: PetDisplayItem, mode: PetCardItem['mode']): void {
@@ -1092,7 +1094,8 @@ onMounted(() => {
     <!-- 底部常驻宠物栏 -->
     <div
       v-if="petDockEnabled && petDockItems.length > 0"
-      class="absolute bottom-0 left-1/2 z-20 -translate-x-1/2"
+      class="absolute left-1/2 z-20 -translate-x-1/2"
+      :style="{ bottom: petDockOffsetY + 'px' }"
     >
       <PetDock :items="petDockItems" />
     </div>

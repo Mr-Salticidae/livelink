@@ -18,6 +18,7 @@ export interface PetConfig {
   feedCost: number
   feedExp: number
   watchExpPerMinute: number
+  dockOffsetY: number // 宠物栏距底部的像素偏移（0 = 贴底，正值 = 向上移）
 }
 
 export interface UserPet {
@@ -101,7 +102,8 @@ export const DEFAULT_PET_CONFIG: PetConfig = {
   adoptionCost: 500,
   feedCost: 100,
   feedExp: 25,
-  watchExpPerMinute: 3
+  watchExpPerMinute: 3,
+  dockOffsetY: 0
 }
 
 export const PET_LEVEL_EXP = 100
@@ -132,7 +134,8 @@ export function clampPetConfig(config: Partial<PetConfig>): PetConfig {
     adoptionCost: clampInt(base.adoptionCost, 0, 100000),
     feedCost: clampInt(base.feedCost, 1, 100000),
     feedExp: clampInt(base.feedExp, 1, 10000),
-    watchExpPerMinute: clampInt(base.watchExpPerMinute, 0, 1000)
+    watchExpPerMinute: clampInt(base.watchExpPerMinute, 0, 1000),
+    dockOffsetY: clampInt(base.dockOffsetY ?? 0, 0, 800)
   }
 }
 

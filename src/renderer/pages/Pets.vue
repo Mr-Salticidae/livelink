@@ -120,7 +120,7 @@ function expPct(item: PetDisplayItem): number {
               class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
             />
           </label>
-          <label class="text-xs text-slate-400 sm:col-span-2">
+          <label class="text-xs text-slate-400">
             每分钟观看经验
             <input
               v-model.number="config.watchExpPerMinute"
@@ -128,6 +128,20 @@ function expPct(item: PetDisplayItem): number {
               min="0"
               class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100"
             />
+          </label>
+          <label class="text-xs text-slate-400">
+            宠物栏位置（距底部像素）
+            <div class="mt-1 flex items-center gap-2">
+              <input
+                v-model.number="config.dockOffsetY"
+                type="range"
+                min="0"
+                max="400"
+                step="10"
+                class="flex-1"
+              />
+              <span class="w-10 text-right text-slate-300">{{ config.dockOffsetY ?? 0 }}px</span>
+            </div>
           </label>
         </div>
 

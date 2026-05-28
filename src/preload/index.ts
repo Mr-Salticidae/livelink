@@ -88,6 +88,10 @@ const api = {
     ipcRenderer.on(IpcChannels.DanmuOverlayRoomStats, handler)
     return () => ipcRenderer.removeListener(IpcChannels.DanmuOverlayRoomStats, handler)
   },
+  danmuOverlayResizeStart: (direction: string) =>
+    ipcRenderer.invoke(IpcChannels.DanmuOverlayResizeStart, direction),
+  danmuOverlayResizeStop: () =>
+    ipcRenderer.invoke(IpcChannels.DanmuOverlayResizeStop),
 
   // 规则
   ruleList: () => ipcRenderer.invoke(IpcChannels.RuleList),

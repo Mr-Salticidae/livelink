@@ -415,12 +415,14 @@ export class HorseRaceService {
     const parsed = parseBet(text, cur.config.horses, cur.config.defaultBet)
     if (!parsed) return
 
+    console.log(`[HorseRace] 弹幕押注尝试: ${e.user.uname} → ${text} → 马 ${parsed.horseKey} ${parsed.amount}`)
+
     const cfg = cur.config
     if (cfg.requireAnchorFansMedal || cfg.minFansMedalLevel > 0) {
       const m = e.user.fansMedal
-      if (!m) return
-      if (cfg.requireAnchorFansMedal && !m.isAnchor) return
-      if (m.level < cfg.minFansMedalLevel) return
+      if (!m) { console.log(`[HorseRace] ${e.user.uname} 无粉丝牌，跳过`); return }
+      if (cfg.requireAnchorFansMedal && !m.isAnchor) { console.log(`[HorseRace] ${e.user.uname} 非本播粉丝牌，跳过`); return }
+      if (m.level < cfg.minFansMedalLevel) { console.log(`[HorseRace] ${e.user.uname} 粉丝牌等级 ${m.level} < ${cfg.minFansMedalLevel}，跳过`); return }
     }
 
     const roomId = this.getCurrentRoomId()

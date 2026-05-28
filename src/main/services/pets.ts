@@ -201,6 +201,7 @@ export class PetService {
       extra: {
         enabled: state.config.enabled,
         displayLimit: state.config.displayLimit,
+        dockOffsetY: state.config.dockOffsetY ?? 0,
         dock: state.dock
       }
     })

@@ -8,7 +8,7 @@
 // - 主进程过滤 bus 'event' 里的 danmu.received / gift.received，通过 webContents.send 推过去
 // - 关掉这个窗不影响主应用其它部分
 
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow, ipcMain, screen, type Rectangle } from 'electron'
 import { join } from 'node:path'
 import { is } from '@electron-toolkit/utils'
 import type { AppConfig, DanmuOverlayConfig } from './config/store'
@@ -265,6 +265,62 @@ export class DanmuOverlayWindow {
         console.error('[DanmuOverlayWindow] status listener threw', err)
       }
     }
+  }
+
+  private resizeInterval: NodeJS.Timeout | null = null
+  private resizeStart: { cursor: { x: number; y: number }; bounds: Rectangle; dir: string; startedAt: number } | null = null
+  // 兜底上限：万一 renderer 进程崩溃 / IPC 丢失没发 stop，也不会让窗口永远黏着光标乱跑
+  private static readonly RESIZE_MAX_MS = 15_000
+
+  /** 注册自定义拖拽缩放 IPC（transparent frameless 窗口 Windows 上只能从右下角 resize，需要手动实现） */
+  registerResizeIpc(): void {
+    ipcMain.handle(IpcChannels.DanmuOverlayResizeStop, () => this.stopResize())
+    ipcMain.handle(IpcChannels.DanmuOverlayResizeStart, (_event, direction: string) => {
+      const win = this.win
+      if (!win || win.isDestroyed()) return
+      this.stopResize()
+      this.resizeStart = {
+        cursor: screen.getCursorScreenPoint(),
+        bounds: win.getBounds(),
+        dir: direction,
+        startedAt: Date.now()
+      }
+      this.resizeInterval = setInterval(() => this.doResizeTick(), 16)
+    })
+  }
+
+  stopResize(): void {
+    if (this.resizeInterval) {
+      clearInterval(this.resizeInterval)
+      this.resizeInterval = null
+    }
+    this.resizeStart = null
+  }
+
+  private doResizeTick(): void {
+    const win = this.win
+    const rs = this.resizeStart
+    if (!win || win.isDestroyed() || !rs) { this.stopResize(); return }
+    if (Date.now() - rs.startedAt > DanmuOverlayWindow.RESIZE_MAX_MS) { this.stopResize(); return }
+    const cur = screen.getCursorScreenPoint()
+    const dx = cur.x - rs.cursor.x
+    const dy = cur.y - rs.cursor.y
+    const b = { ...rs.bounds }
+    const dir = rs.dir
+
+    if (dir.includes('e')) b.width = Math.max(MIN_WIDTH, rs.bounds.width + dx)
+    if (dir.includes('s')) b.height = Math.max(MIN_HEIGHT, rs.bounds.height + dy)
+    if (dir.includes('w')) {
+      const newW = Math.max(MIN_WIDTH, rs.bounds.width - dx)
+      b.x = rs.bounds.x + rs.bounds.width - newW
+      b.width = newW
+    }
+    if (dir.includes('n')) {
+      const newH = Math.max(MIN_HEIGHT, rs.bounds.height - dy)
+      b.y = rs.bounds.y + rs.bounds.height - newH
+      b.height = newH
+    }
+    win.setBounds(b)
   }
 
   /** 应用退出时清理 */
