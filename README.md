@@ -1,5 +1,7 @@
 # B 站直播弹幕+礼物插件（LiveLink）
 
+[![下载最新版](https://img.shields.io/badge/⬇️_下载最新版-Windows_安装包-4ade80?style=for-the-badge)](https://github.com/Mr-Salticidae/livelink/releases/latest)
+
 [![Release](https://img.shields.io/github/v/release/Mr-Salticidae/livelink?style=flat-square&color=4ade80)](https://github.com/Mr-Salticidae/livelink/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Mr-Salticidae/livelink/total?style=flat-square&color=60a5fa)](https://github.com/Mr-Salticidae/livelink/releases)
 ![Platform](https://img.shields.io/badge/Platform-Windows-blue?style=flat-square)
@@ -7,7 +9,9 @@
 ![Built with Electron](https://img.shields.io/badge/Built%20with-Electron-47848F?style=flat-square&logo=electron&logoColor=white)
 
 > 给主播朋友们用的 B 站直播间桌面助手。自动欢迎、礼物感谢、屏幕特效、TTS 语音、弹幕抽奖 / 投票 / 赛马 / 养宠互动、弹幕悬浮窗（钉住穿透）、SuperChat 横幅、盲盒查询、DeepSeek AI 智能回复、OBS 观众端主题。
-> 立项时间：2026-05-12 · 立项人：跳蛛先生 · **当前版本：v1.4.0 · 状态：朋友内测版**
+> 立项时间：2026-05-12 · 立项人：跳蛛先生 · **当前版本：v1.4.1 · 状态：朋友内测版**
+
+> 📥 **下载安装**：点击上方绿色按钮，或前往 [Releases 页面](https://github.com/Mr-Salticidae/livelink/releases/latest) 下载 `LiveLink-Setup-x.x.x.exe`，双击即装。首次运行若被 Windows SmartScreen 拦截，点「更多信息 → 仍要运行」即可。
 
 ---
 
