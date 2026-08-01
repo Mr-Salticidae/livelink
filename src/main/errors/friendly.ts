@@ -1,5 +1,11 @@
 // 把内部错误转成给主播朋友看的中文友好提示
-import { AdapterAlreadyConnectedError, RoomApiError, RoomNotFoundError } from '../platform/errors'
+import {
+  AdapterAlreadyConnectedError,
+  HandshakeFailedError,
+  RoomApiError,
+  RoomNotFoundError
+} from '../platform/errors'
+import { BilibiliApiError } from '../platform/bilibili-api'
 
 export interface FriendlyError {
   code: string
@@ -7,6 +13,29 @@ export interface FriendlyError {
 }
 
 export function toFriendlyError(err: unknown): FriendlyError {
+  if (err instanceof HandshakeFailedError) {
+    return {
+      code: err.code,
+      message:
+        '连上了 B 站但没通过验证。多半是登录态过期了：到「B 站登录」页重新填一次 SESSDATA 再试。'
+    }
+  }
+  if (err instanceof BilibiliApiError) {
+    // -352 / -412 是 B 站风控拦截，和网络不通不是一回事，分开提示免得主播白折腾
+    if (err.apiCode === -352 || err.apiCode === -412) {
+      return {
+        code: 'BILIBILI_RISK_CONTROL',
+        message: 'B 站把这次请求拦了（风控）。等一两分钟再试；老是这样就填一下 SESSDATA 登录态。'
+      }
+    }
+    if (err.apiCode === null) {
+      return {
+        code: 'NETWORK',
+        message: '连不上 B 站服务器，先看看网络。网络恢复后会自动重连。'
+      }
+    }
+    return { code: err.code, message: `B 站接口返回异常（${err.apiCode}）：${err.message}` }
+  }
   if (err instanceof RoomNotFoundError) {
     return {
       code: err.code,

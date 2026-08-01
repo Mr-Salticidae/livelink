@@ -1,6 +1,6 @@
 {
   "name": "livelink",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "B 站直播弹幕+礼物插件 — 给非技术主播朋友的桌面助手",
   "main": "./out/main/index.js",
   "author": "跳蛛先生",
@@ -21,6 +21,7 @@
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
     "preview": "electron-vite preview",
+    "verify:reconnect": "esbuild scripts/verify-reconnect.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-reconnect.cjs --external:electron --log-level=warning && node node_modules/.cache/verify-reconnect.cjs",
     "package": "electron-vite build && electron-builder --win --config electron-builder.yml",
     "package:dir": "electron-vite build && electron-builder --win --dir --config electron-builder.yml"
   },

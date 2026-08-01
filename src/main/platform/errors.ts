@@ -24,3 +24,14 @@ export class AdapterAlreadyConnectedError extends Error {
     this.name = 'AdapterAlreadyConnectedError'
   }
 }
+
+// TCP 连上了、但没等到 CONNECT_SUCCESS 就被关掉或超时。
+// 典型成因：弹幕服务器握手 token 已失效、未登录被风控降级、握手中途断网
+export class HandshakeFailedError extends Error {
+  readonly code = 'HANDSHAKE_FAILED'
+  constructor(message: string, cause?: unknown) {
+    super(message)
+    this.name = 'HandshakeFailedError'
+    if (cause) (this as { cause?: unknown }).cause = cause
+  }
+}

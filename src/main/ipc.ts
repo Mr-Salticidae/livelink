@@ -1,4 +1,4 @@
-import { ipcMain, type BrowserWindow } from 'electron'
+import { ipcMain, net, powerMonitor, type BrowserWindow } from 'electron'
 import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
 import type { BilibiliAdapter } from './platform/bilibili'
 import type { RuleEngine } from './rules/engine'
@@ -69,43 +69,133 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     deps.getMainWindow()?.webContents.send(IpcChannels.AppStatusUpdate, next)
   }
 
-  // ─── 重连策略：被动断线后自动重试，5s → 15s → 放弃推 error ────
-  const RECONNECT_DELAYS = [5_000, 15_000]
-  const RECONNECT_WATCHDOG_MS = 8_000 // adapter.reconnect() 后等几秒没收到 opened 视为本次失败
+  // ─── 重连策略 ───────────────────────────────────────────────
+  //
+  // 设计要点（都是为了修"意外断网后不停重连但永远连不上"）：
+  //  1. 每次重试都走 adapter.reconnect()，它会拆掉旧连接并用全新 token 重建。
+  //     旧实现调的是 lib 的 listener.reconnect()，复用失效 token，注定连不上。
+  //  2. 只有一个 timer 句柄，且赋值前一定先 clear。旧实现在 setTimeout 回调里
+  //     用 watchdog 覆盖了同一个变量却没 clear，导致游离定时器越攒越多，
+  //     "停止"也清不掉它们 —— 这就是那个永不停歇的重连循环。
+  //  3. epoch：每次 clearReconnect / 用户操作都自增，异步回调认领不到就直接退出。
+  //  4. 不再等 watchdog 猜结果——reconnect() 的 Promise 就是结果。
+  //  5. 断网期间不放弃。旧实现试 2 次（共 20s）就永久放弃，而拔网线 / 路由器重启
+  //     动辄几分钟。改成指数退避 + 上限 60s 持续重试，并区分"本机没网"和
+  //     "连得上网但连不上 B 站"，UI 上如实告诉主播现在是哪种。
+  const RECONNECT_BASE_DELAY_MS = 3_000
+  const RECONNECT_MAX_DELAY_MS = 60_000
+  // 本机网络就是断的时候，没必要按退避去捶 B 站，短间隔轻量探测即可
+  const OFFLINE_POLL_MS = 5_000
+
+  // 连续失败到这个次数后，把底层原因也带进状态条。
+  // 一直只显示"正在重连…"的话，SESSDATA 过期这种永远好不了的情况主播会干等
+  const SHOW_CAUSE_AFTER_ATTEMPTS = 3
+
+  let reconnectEpoch = 0
   let reconnectAttempt = 0
   let reconnectTimer: NodeJS.Timeout | null = null
+  let reconnecting = false
+  let lastFailureMessage = ''
 
   function clearReconnect(): void {
+    reconnectEpoch += 1 // 让所有在途回调失效
     if (reconnectTimer) {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
     }
     reconnectAttempt = 0
+    reconnecting = false
+    lastFailureMessage = ''
   }
 
-  function scheduleReconnect(roomId: number): void {
-    if (reconnectAttempt >= RECONNECT_DELAYS.length) {
+  /** 指数退避：3s、6s、12s、24s、48s，之后固定 60s */
+  function backoffDelay(attempt: number): number {
+    const raw = RECONNECT_BASE_DELAY_MS * 2 ** Math.max(0, attempt - 1)
+    return Math.min(raw, RECONNECT_MAX_DELAY_MS)
+  }
+
+  function isOnline(): boolean {
+    try {
+      return net.isOnline()
+    } catch {
+      return true // 拿不准就当在线，让真正的连接尝试去暴露问题
+    }
+  }
+
+  function scheduleReconnect(roomId: number, epoch: number, immediate = false): void {
+    if (epoch !== reconnectEpoch) return
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+
+    const offline = !isOnline()
+    const delay = immediate ? 0 : offline ? OFFLINE_POLL_MS : backoffDelay(reconnectAttempt + 1)
+
+    if (offline) {
       pushStatus({
-        state: 'error',
-        code: 'RECONNECT_FAILED',
-        message: '连不上直播间，已停止重试。检查网络后重新点开始。'
+        state: 'reconnecting',
+        roomId,
+        message: '网络已断开，等网络恢复后会自动重连…'
       })
-      clearReconnect()
+    } else {
+      const base =
+        reconnectAttempt === 0
+          ? '连接断了，正在重连…'
+          : `连接断了，${Math.round(delay / 1000)} 秒后重连（已试 ${reconnectAttempt} 次）…`
+      // 试了几次还不行，就把真实原因摊开说，别让主播盯着"重连中"干等
+      const cause =
+        reconnectAttempt >= SHOW_CAUSE_AFTER_ATTEMPTS && lastFailureMessage
+          ? ` 原因：${lastFailureMessage}`
+          : ''
+      pushStatus({ state: 'reconnecting', roomId, message: base + cause })
+    }
+
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      void runReconnect(roomId, epoch)
+    }, delay)
+  }
+
+  async function runReconnect(roomId: number, epoch: number): Promise<void> {
+    if (epoch !== reconnectEpoch) return
+    // 本机还没网就别浪费一次尝试，继续轻量轮询等网络回来
+    if (!isOnline()) {
+      scheduleReconnect(roomId, epoch)
       return
     }
-    const delay = RECONNECT_DELAYS[reconnectAttempt]
+    if (reconnecting) return
+    reconnecting = true
     reconnectAttempt += 1
     pushStatus({
       state: 'reconnecting',
       roomId,
-      message: `连接断了，${Math.round(delay / 1000)} 秒后第 ${reconnectAttempt} 次重连…`
+      message: `正在重连（第 ${reconnectAttempt} 次）…`
     })
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null
-      adapter.reconnect()
-      // watchdog：N 秒内没收到 opened 信号 → 进入下一轮
-      reconnectTimer = setTimeout(() => scheduleReconnect(roomId), RECONNECT_WATCHDOG_MS)
-    }, delay)
+    try {
+      await adapter.reconnect()
+      // 成功与否以 adapter 的 opened 状态事件为准，这里不抢着推 connected
+    } catch (err) {
+      if (epoch !== reconnectEpoch) return
+      const friendly = toFriendlyError(err)
+      lastFailureMessage = friendly.message
+      console.warn(`[reconnect] 第 ${reconnectAttempt} 次失败：${friendly.message}`)
+      reconnecting = false // 先放行，scheduleReconnect 里不会再被本次占用挡住
+      scheduleReconnect(roomId, epoch)
+    } finally {
+      reconnecting = false
+    }
+  }
+
+  /** 被动断线入口：从 connected / reconnecting 状态进入重连流程 */
+  function beginReconnect(): void {
+    const cur = status.current
+    if (cur.state !== 'connected' && cur.state !== 'reconnecting') return
+    const roomId = cur.roomId
+    if (reconnecting || reconnectTimer) return // 已经在重连流程里了，别叠加
+    reconnectEpoch += 1
+    reconnectAttempt = 0
+    scheduleReconnect(roomId, reconnectEpoch)
   }
 
   adapter.onStatus((e) => {
@@ -120,16 +210,26 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         clearReconnect()
         return
       }
-      // 被动断线：只在当前是 connected/reconnecting 时进入重连流程
-      const cur = status.current
-      if (cur.state !== 'connected' && cur.state !== 'reconnecting') return
-      const roomId = cur.state === 'connected' || cur.state === 'reconnecting' ? cur.roomId : 0
-      scheduleReconnect(roomId)
+      beginReconnect()
       return
     }
     // error：只 console，不直接降级状态——很多 error 是非致命的（心跳失败 / 单条解码失败等）
     console.error('[adapter status] error:', e.message)
   })
+
+  // 网络恢复 / 睡眠唤醒时立刻试一次，不用干等退避走完。
+  // 合盖再打开、拔插网线是主播最常遇到的两种断连场景
+  function kickReconnectNow(reason: string): void {
+    const cur = status.current
+    if (cur.state !== 'reconnecting') return
+    if (reconnecting) return
+    console.log(`[reconnect] ${reason}，立即重试`)
+    reconnectEpoch += 1
+    scheduleReconnect(cur.roomId, reconnectEpoch, true)
+  }
+
+  powerMonitor.on('resume', () => kickReconnectNow('系统从睡眠中唤醒'))
+  powerMonitor.on('unlock-screen', () => kickReconnectNow('屏幕解锁'))
 
   // ─── 连接控制 ───────────────────────────────────────────────
   ipcMain.handle(IpcChannels.AppStart, async (_e, roomInput: string) => {
@@ -142,6 +242,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       throw new Error(err.message)
     }
     clearReconnect() // 用户重新开始连接，清掉旧的重连定时
+    // 先无条件拆掉可能还在的旧连接。主播在"断线重连中"直接点开始是很常见的操作，
+    // 不这么做的话 adapter 会抛"已经连接了，先点停止"，等于逼他多点一次
+    try {
+      await adapter.disconnect()
+    } catch (err) {
+      console.warn('[AppStart] 清理旧连接失败（忽略）', err)
+    }
     pushStatus({ state: 'validating', roomInput: String(roomInput) })
     try {
       // 把 B 站登录态（如有）一并传给 adapter，让 lib 用 SESSDATA 做 HTTP 预请求拿登录态 token

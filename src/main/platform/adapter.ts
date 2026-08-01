@@ -128,6 +128,8 @@ export interface PlatformAdapter {
   disconnect(): Promise<void>
   on(listener: EventListener): () => void
   onStatus(listener: StatusListener): () => void
-  // 让 adapter 触发底层 ws 的 reconnect（不重新走 connect 流程，保留当前 roomId 和 options）
-  reconnect(): void
+  // 用当前 roomId / options 重建一条连接（拆掉旧的、重新握手）。
+  // Promise 在握手真正成功后才 resolve，失败即 reject——
+  // 上层据此决定要不要排下一次退避重试，不用靠定时器猜结果
+  reconnect(): Promise<void>
 }
