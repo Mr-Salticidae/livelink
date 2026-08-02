@@ -196,58 +196,74 @@ async function copyOverlayUrl(): Promise<void> {
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
     <header>
-      <h1 class="text-2xl font-semibold">首页</h1>
+      <p class="ll-eyebrow-accent mb-1.5">LIVE CONTROL</p>
+      <h1 class="ll-title text-[26px]">首页</h1>
       <p class="mt-1 text-sm text-slate-400">填上你的 B 站直播间号，点开始就行。</p>
     </header>
 
-    <!-- 房间号 + 开始/停止 -->
-    <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-      <label class="mb-2 block text-sm text-slate-300">直播间号或链接</label>
-      <div class="flex items-stretch gap-3">
-        <input
-          v-model="roomInput"
-          :disabled="isConnected || isBusy"
-          placeholder="比如 21452505 或 https://live.bilibili.com/21452505"
-          class="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-sky-500 focus:outline-none disabled:opacity-60"
-        />
-        <button
-          @click="toggleConnection"
-          :disabled="isBusy"
-          class="rounded-lg px-5 text-sm font-medium transition disabled:opacity-50"
-          :class="isConnected
-            ? 'bg-rose-500 text-white hover:bg-rose-400'
-            : 'bg-sky-500 text-white hover:bg-sky-400'"
-        >
-          {{ buttonLabel }}
-        </button>
-      </div>
+    <!-- 房间号 + 开始/停止：全页主行动区，给一层蛛丝辉光当视觉重心 -->
+    <section class="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
+      <div
+        class="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full blur-3xl"
+        style="background: radial-gradient(circle, rgba(155, 133, 255, 0.16), transparent 70%)"
+      />
+      <div class="relative">
+        <p class="ll-eyebrow mb-2">Room · 直播间号或链接</p>
+        <div class="flex items-stretch gap-3">
+          <input
+            v-model="roomInput"
+            :disabled="isConnected || isBusy"
+            placeholder="比如 21452505 或 https://live.bilibili.com/21452505"
+            class="ll-input flex-1"
+          />
+          <button
+            @click="toggleConnection"
+            :disabled="isBusy"
+            class="ll-btn min-w-[104px]"
+            :class="isConnected
+              ? 'bg-rose-500/90 text-white hover:bg-rose-400'
+              : 'll-btn-primary'"
+          >
+            {{ buttonLabel }}
+          </button>
+        </div>
 
-      <!-- 状态徽章 -->
-      <div class="mt-4 flex items-center gap-3 text-sm">
-        <span
-          class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs"
-          :class="{
-            'bg-slate-800 text-slate-400': status.state === 'idle',
-            'bg-amber-500/20 text-amber-300': ['validating', 'connecting', 'reconnecting'].includes(status.state),
-            'bg-emerald-500/20 text-emerald-300': status.state === 'connected',
-            'bg-rose-500/20 text-rose-300': status.state === 'error'
-          }"
-        >
-          <span v-if="status.state === 'idle'">未连接</span>
-          <span v-else-if="status.state === 'validating'">校验房间号中…</span>
-          <span v-else-if="status.state === 'connecting'">连接中…</span>
-          <span v-else-if="status.state === 'connected'">已连接 · 房间 {{ status.roomId }}</span>
-          <span v-else-if="status.state === 'reconnecting'">{{ status.message ?? '断线重连中…' }}</span>
-          <span v-else-if="status.state === 'error'">出错了</span>
-        </span>
-      </div>
+        <!-- 状态徽章 -->
+        <div class="mt-4 flex items-center gap-3 text-sm">
+          <span
+            class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
+            :class="{
+              'border-slate-800 bg-slate-800/50 text-slate-400': status.state === 'idle',
+              'border-amber-400/30 bg-amber-400/10 text-amber-200': ['validating', 'connecting', 'reconnecting'].includes(status.state),
+              'border-emerald-400/30 bg-emerald-400/10 text-emerald-200': status.state === 'connected',
+              'border-rose-400/30 bg-rose-400/10 text-rose-200': status.state === 'error'
+            }"
+          >
+            <span
+              class="h-1.5 w-1.5 rounded-full"
+              :class="{
+                'bg-slate-500': status.state === 'idle',
+                'bg-amber-300 animate-pulse': ['validating', 'connecting', 'reconnecting'].includes(status.state),
+                'bg-emerald-400': status.state === 'connected',
+                'bg-rose-400': status.state === 'error'
+              }"
+            />
+            <span v-if="status.state === 'idle'">未连接</span>
+            <span v-else-if="status.state === 'validating'">校验房间号中…</span>
+            <span v-else-if="status.state === 'connecting'">连接中…</span>
+            <span v-else-if="status.state === 'connected'">已连接 · 房间 {{ status.roomId }}</span>
+            <span v-else-if="status.state === 'reconnecting'">{{ status.message ?? '断线重连中…' }}</span>
+            <span v-else-if="status.state === 'error'">出错了</span>
+          </span>
+        </div>
 
-      <p
-        v-if="errorMsg || status.state === 'error'"
-        class="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200"
-      >
-        {{ errorMsg || (status.state === 'error' ? status.message : '') }}
-      </p>
+        <p
+          v-if="errorMsg || status.state === 'error'"
+          class="mt-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200"
+        >
+          {{ errorMsg || (status.state === 'error' ? status.message : '') }}
+        </p>
+      </div>
     </section>
 
     <!-- Overlay URL 卡片：正常 / 启动失败两种状态 -->
@@ -257,7 +273,7 @@ async function copyOverlayUrl(): Promise<void> {
     >
       <div class="flex items-start gap-3">
         <span class="text-xl">⚠️</span>
-        <div class="flex-1">
+        <div class="min-w-0 flex-1">
           <div class="font-medium text-rose-200">Overlay 服务启动失败</div>
           <div class="mt-1 text-xs text-rose-300/80 break-all font-mono">{{ overlayFatalError }}</div>
           <p class="mt-3 text-sm text-slate-300">

@@ -129,7 +129,8 @@ function setKeywordsFromText(rule: Rule, text: string): void {
   <div class="mx-auto max-w-4xl space-y-6">
     <header class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-semibold">规则</h1>
+        <p class="ll-eyebrow-accent mb-1.5">AUTOMATION</p>
+        <h1 class="ll-title text-[26px]">规则</h1>
         <p class="mt-1 text-sm text-slate-400">改了立即生效。下次启动也记得。</p>
       </div>
     </header>

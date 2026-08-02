@@ -67,7 +67,8 @@ function setKeywords(text: string): void {
 <template>
   <div v-if="config" class="mx-auto max-w-4xl space-y-6">
     <header>
-      <h1 class="text-2xl font-semibold">AI 智能回复</h1>
+      <p class="ll-eyebrow-accent mb-1.5">ASSISTANT</p>
+      <h1 class="ll-title text-[26px]">AI 智能回复</h1>
       <p class="mt-1 text-sm text-slate-400">
         使用主播自己的 DeepSeek API Key。默认关闭；未填写 Key 时不会产生任何 API 调用或费用。
       </p>

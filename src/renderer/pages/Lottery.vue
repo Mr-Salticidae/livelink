@@ -96,7 +96,8 @@ async function copyWinners(): Promise<void> {
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
     <header>
-      <h1 class="text-2xl font-semibold">弹幕抽奖</h1>
+      <p class="ll-eyebrow-accent mb-1.5">GIVEAWAY</p>
+      <h1 class="ll-title text-[26px]">弹幕抽奖</h1>
       <p class="mt-1 text-sm text-slate-400">
         发起一轮抽奖：观众发关键词参与 → 倒计时结束 → 随机抽 N 名 → Overlay 弹出公布
       </p>

@@ -119,7 +119,8 @@ async function test(): Promise<void> {
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
     <header>
-      <h1 class="text-2xl font-semibold">TTS 设置</h1>
+      <p class="ll-eyebrow-accent mb-1.5">VOICE</p>
+      <h1 class="ll-title text-[26px]">TTS 设置</h1>
       <p class="mt-1 text-sm text-slate-400">调音色、调语速。改了立即保存。</p>
     </header>
 

@@ -2,12 +2,150 @@
 @tailwind components;
 @tailwind utilities;
 
+/* LiveLink 视觉系统「蛛丝」——与 蛛网之上 / pb-arena 同源的一套语汇。
+   色板重映射在 tailwind.config.js（slate → 紫调墨、sky → 蛛丝紫）；
+   这里补三样 config 给不了的：CSS 变量、全局质感、可复用的组件类。 */
+
 @layer base {
-  html, body, #app {
+  :root {
+    --paper: #0d0c13;
+    --paper-2: #17151f;
+    --paper-3: #1d1b27;
+    --ink: #ece8f5;
+    --ink-soft: #9a93ad;
+    --line: #2a2738;
+    --accent: #9b85ff;
+    --accent-2: #d98bff;
+    --glow: 155, 133, 255; /* accent rgb，供辉光/网线复用 */
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #app {
     height: 100%;
   }
+
   body {
     -webkit-font-smoothing: antialiased;
-    font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+    text-rendering: optimizeLegibility;
+    font-family: theme('fontFamily.sans');
+    /* 两团极淡的辉光落在左上与右下，让大片深色不至于死板。
+       固定不随内容滚动，成本仅一次绘制 */
+    background-color: var(--paper);
+    background-image:
+      radial-gradient(52% 44% at 12% 0%, rgba(var(--glow), 0.1), transparent 72%),
+      radial-gradient(46% 40% at 96% 100%, rgba(217, 139, 255, 0.07), transparent 74%);
+    background-attachment: fixed;
+  }
+
+  /* flex 子项默认 min-width:auto，装着长 URL 的 <input> 因此拒绝收缩，
+     窗口一窄就把整页撑破、右侧按钮被裁掉（实测默认窗口宽度下就会发生）。
+     全局放开收缩，配合各处 min-w-0 才能真正自适应 */
+  input,
+  select,
+  textarea {
+    min-width: 0;
+  }
+
+  /* 数字一律等宽对齐——余额、票数、倒计时跳动时不再左右抖 */
+  b,
+  strong,
+  time,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: rgba(var(--glow), 0.28);
+  }
+
+  /* 深色滚动条，避免默认亮条割裂画面 */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2738;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3d3856;
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* ── 小标签：全大写 + 大字距 + 等宽，pb-arena 的招牌 ── */
+  .ll-eyebrow {
+    @apply font-mono text-[10px] font-medium uppercase text-slate-500;
+    letter-spacing: 0.16em;
+  }
+  .ll-eyebrow-accent {
+    @apply font-mono text-[10px] font-medium uppercase text-sky-400;
+    letter-spacing: 0.16em;
+  }
+
+  /* ── 衬线标题 ── */
+  .ll-title {
+    @apply font-serif font-bold tracking-wide text-slate-100;
+  }
+
+  /* ── 卡片：发丝描边 + 悬浮起边光（承自蛛网之上 .card::before）── */
+  .ll-card {
+    @apply relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 p-5;
+  }
+  .ll-card-hover {
+    @apply transition duration-200;
+  }
+  .ll-card-hover::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(var(--accent), var(--accent-2));
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .ll-card-hover:hover {
+    @apply -translate-y-0.5 border-sky-500/40 shadow-lift;
+  }
+  .ll-card-hover:hover::before {
+    opacity: 1;
+  }
+
+  /* ── 药丸 ── */
+  .ll-pill {
+    @apply inline-flex items-center gap-2 rounded-full border border-slate-800 px-3 py-1 text-xs text-slate-400;
+  }
+
+  /* ── 按钮 ── */
+  .ll-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition disabled:opacity-50;
+  }
+  .ll-btn-primary {
+    @apply bg-sky-500 text-slate-950 hover:bg-sky-400;
+    box-shadow: 0 8px 24px -10px rgba(var(--glow), 0.9);
+  }
+  .ll-btn-ghost {
+    @apply border border-slate-700 text-slate-300 hover:border-sky-500 hover:text-slate-100;
+  }
+
+  /* ── 输入框 ── */
+  .ll-input {
+    @apply rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100
+           placeholder:text-slate-600 focus:border-sky-500 focus:outline-none disabled:opacity-60;
+  }
+
+  /* ── 区段分隔：细线 + 衬线小标题 ── */
+  .ll-rule {
+    @apply border-t border-slate-800;
   }
 }

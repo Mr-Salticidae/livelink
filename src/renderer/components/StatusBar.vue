@@ -12,7 +12,7 @@ const stateText = computed(() => {
     case 'connecting':
       return `连接中：${s.roomId}`
     case 'connected':
-      return `已连接：${s.roomId}`
+      return `已连接 · 房间 ${s.roomId}`
     case 'reconnecting':
       return s.message ?? `断线重连：${s.roomId}`
     case 'error':
@@ -24,31 +24,47 @@ const stateText = computed(() => {
 const stateColor = computed(() => {
   switch (status.value.state) {
     case 'connected':
-      return 'text-emerald-400'
+      return 'text-emerald-300'
     case 'error':
-      return 'text-rose-400'
+      return 'text-rose-300'
     case 'idle':
-      return 'text-slate-400'
+      return 'text-slate-500'
     default:
-      return 'text-amber-300'
+      return 'text-amber-200'
+  }
+})
+
+const dotClass = computed(() => {
+  switch (status.value.state) {
+    case 'connected':
+      return 'bg-emerald-400'
+    case 'error':
+      return 'bg-rose-400'
+    case 'idle':
+      return 'bg-slate-600'
+    default:
+      return 'bg-amber-300 animate-pulse'
   }
 })
 </script>
 
 <template>
-  <footer class="flex items-center justify-between border-t border-slate-800 bg-slate-950/80 px-4 py-2 text-xs">
-    <div class="flex items-center gap-2">
-      <span class="inline-block h-2 w-2 rounded-full" :class="{
-        'bg-emerald-500': status.state === 'connected',
-        'bg-rose-500': status.state === 'error',
-        'bg-slate-600': status.state === 'idle',
-        'bg-amber-400 animate-pulse': ['validating', 'connecting', 'reconnecting'].includes(status.state)
-      }"></span>
-      <span :class="stateColor">{{ stateText }}</span>
+  <footer
+    class="flex items-center justify-between border-t border-slate-800 bg-slate-950/80 px-5 py-2 text-xs backdrop-blur"
+  >
+    <div class="flex min-w-0 items-center gap-2.5">
+      <span class="h-1.5 w-1.5 flex-none rounded-full transition" :class="dotClass" />
+      <span class="truncate" :class="stateColor">{{ stateText }}</span>
     </div>
-    <div class="flex items-center gap-6 text-slate-500">
-      <span>Overlay 端口：<span class="text-slate-300">{{ overlayPort || '—' }}</span></span>
-      <span>启用规则：<span class="text-slate-300">{{ enabledRuleCount }}</span></span>
+    <div class="flex flex-none items-center gap-5">
+      <span class="flex items-center gap-1.5">
+        <span class="ll-eyebrow">Overlay</span>
+        <span class="font-mono text-[11px] text-slate-300">{{ overlayPort || '—' }}</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="ll-eyebrow">Rules</span>
+        <span class="font-mono text-[11px] text-slate-300">{{ enabledRuleCount }}</span>
+      </span>
     </div>
   </footer>
 </template>

@@ -227,7 +227,8 @@ const winnerLabel = computed(() => {
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
     <header>
-      <h1 class="text-2xl font-semibold">竞猜</h1>
+      <p class="ll-eyebrow-accent mb-1.5">BETTING</p>
+      <h1 class="ll-title text-[26px]">竞猜</h1>
       <p class="mt-1 text-sm text-slate-400">
         观众用<strong class="text-amber-300">{{ globalCfg.currencyName }}</strong>押注 → 买定离手 → 主播手动结算赢家 → 押中按金额比例瓜分总池
       </p>

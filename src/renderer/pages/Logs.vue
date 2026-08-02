@@ -80,7 +80,8 @@ function badgeLabel(kind: LogEntry['eventKind']): string {
   <div class="mx-auto flex h-full max-w-4xl flex-col space-y-4">
     <header class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-semibold">日志</h1>
+        <p class="ll-eyebrow-accent mb-1.5">ACTIVITY</p>
+        <h1 class="ll-title text-[26px]">日志</h1>
         <p class="mt-1 text-sm text-slate-400">最近 500 条事件，按规则命中 / 平台事件分类。</p>
       </div>
       <button

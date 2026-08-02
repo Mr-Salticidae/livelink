@@ -23,7 +23,7 @@ onMounted(() => {
   <div class="flex h-full flex-col">
     <div class="flex flex-1 overflow-hidden">
       <Sidebar />
-      <main class="flex-1 overflow-y-auto px-8 py-6">
+      <main class="min-w-0 flex-1 overflow-y-auto px-6 py-6 lg:px-8">
         <Home v-if="currentPage === 'home'" />
         <Rules v-else-if="currentPage === 'rules'" />
         <TTSSettings v-else-if="currentPage === 'tts'" />

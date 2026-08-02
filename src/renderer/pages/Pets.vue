@@ -53,7 +53,8 @@ function expPct(item: PetDisplayItem): number {
   <div class="mx-auto max-w-5xl space-y-6">
     <header class="flex items-start justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-semibold">宠物</h1>
+        <p class="ll-eyebrow-accent mb-1.5">COMPANION</p>
+        <h1 class="ll-title text-[26px]">宠物</h1>
         <p class="mt-1 text-sm text-slate-400">
           观众用 {{ currencyName }} 领养、投喂，进房观看会让首选宠物慢慢升级进化。
         </p>

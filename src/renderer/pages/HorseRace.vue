@@ -134,7 +134,8 @@ const winnerHorse = computed(() => {
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
     <header>
-      <h1 class="text-2xl font-semibold">赛马</h1>
+      <p class="ll-eyebrow-accent mb-1.5">RACE</p>
+      <h1 class="ll-title text-[26px]">赛马</h1>
       <p class="mt-1 text-sm text-slate-400">
         2-8 匹马 → 观众弹幕押<strong class="text-amber-300">{{ currencyName }}</strong>选号 → 随机赛跑 → 押中第一名按金额比例瓜分总池
       </p>

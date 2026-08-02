@@ -123,7 +123,8 @@ const winnerLabel = computed(() => {
 <template>
   <div class="mx-auto max-w-3xl space-y-6">
     <header>
-      <h1 class="text-2xl font-semibold">互动投票</h1>
+      <p class="ll-eyebrow-accent mb-1.5">POLL</p>
+      <h1 class="ll-title text-[26px]">互动投票</h1>
       <p class="mt-1 text-sm text-slate-400">
         发起一轮投票：观众弹幕发选项 key（完全等于 "1" / "A" 才算）→ 实时柱状图 → 倒计时结束公布赢家
       </p>
