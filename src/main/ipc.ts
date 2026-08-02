@@ -17,6 +17,8 @@ import type { GuessingService, GuessingConfig } from './services/guessing'
 import { setInitialBalanceFallback } from './services/guessing'
 import type { PetService } from './services/pets'
 import type { AiReplyService } from './services/ai-reply'
+import type { DanmuReaderService } from './services/danmu-reader'
+import type { DanmuReaderConfig } from '../shared/danmu-reader'
 import type { WalletStore } from './services/wallet-store'
 import type { GuessingGlobalConfig } from './config/store'
 import type { PetConfig } from '../shared/pets'
@@ -38,6 +40,7 @@ export interface IpcDeps {
   guessing: GuessingService
   pets: PetService
   aiReply: AiReplyService
+  danmuReader: DanmuReaderService
   wallet: WalletStore
   config: AppConfig
   log: LogSink
@@ -58,6 +61,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     guessing,
     pets,
     aiReply,
+    danmuReader,
     wallet,
     config,
     log,
@@ -249,6 +253,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     } catch (err) {
       console.warn('[AppStart] 清理旧连接失败（忽略）', err)
     }
+    // 换房间 / 重开时清掉上一场残留的播报队列和朗读冷却记录
+    ttsPlayer.stop()
+    danmuReader.resetRuntime()
     pushStatus({ state: 'validating', roomInput: String(roomInput) })
     try {
       // 把 B 站登录态（如有）一并传给 adapter，让 lib 用 SESSDATA 做 HTTP 预请求拿登录态 token
@@ -272,6 +279,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(IpcChannels.AppStop, async () => {
     clearReconnect() // 用户在 reconnecting 状态点停止时，必须先取消重试
     await adapter.disconnect()
+    // 点了停止就不该再听到播报。队列里可能还压着十几条礼物感谢和弹幕，
+    // 不清的话会在断开后继续念上一两分钟
+    ttsPlayer.stop()
+    danmuReader.resetRuntime()
     pushStatus({ state: 'idle' })
     return { ok: true }
   })
@@ -575,6 +586,38 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     }
   )
   ipcMain.handle(IpcChannels.TtsVoiceList, () => VOICE_OPTIONS)
+  // 主播喊停：清空整条播报队列并打断正在念的那句
+  ipcMain.handle(IpcChannels.TtsStop, () => {
+    ttsPlayer.stop()
+    return { ok: true }
+  })
+  // 只跳过当前这句，队列里剩下的继续念
+  ipcMain.handle(IpcChannels.TtsSkip, () => {
+    ttsPlayer.skip()
+    return { ok: true }
+  })
+  ipcMain.handle(IpcChannels.TtsStats, () => ttsPlayer.getStats())
+
+  // ─── 弹幕朗读 ────────────────────────────────────────────────
+  ipcMain.handle(IpcChannels.DanmuReaderGet, () => config.getDanmuReader())
+  ipcMain.handle(IpcChannels.DanmuReaderPatch, (_e, patch: Partial<DanmuReaderConfig>) => {
+    return config.patchDanmuReader(patch)
+  })
+  ipcMain.handle(IpcChannels.DanmuReaderStats, () => danmuReader.getStats())
+  // 试听：拿一条示例弹幕跑完整净化 + 模板，再用朗读音色念出来，
+  // 让主播在设置页就能听到"这条弹幕最后会被念成什么样"
+  ipcMain.handle(IpcChannels.DanmuReaderPreview, async (_e, sample?: string) => {
+    const cfg = config.getDanmuReader()
+    const result = danmuReader.preview(sample ?? '主播今天播到几点呀[妙][妙]')
+    if (!result.spoken) return { ok: false, spoken: '', reason: result.reason }
+    try {
+      await ttsPlayer.test(result.spoken, cfg.voice || undefined)
+      return { ok: true, spoken: result.spoken }
+    } catch (err) {
+      const friendly = toFriendlyError(err)
+      throw new Error(friendly.message)
+    }
+  })
 
   // ─── 日志 ────────────────────────────────────────────────────
   ipcMain.handle(IpcChannels.LogRecent, (_e, limit?: number) => log.recent(limit))

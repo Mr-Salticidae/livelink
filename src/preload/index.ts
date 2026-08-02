@@ -44,6 +44,17 @@ const api = {
   ttsTest: (text?: string, voice?: string) =>
     ipcRenderer.invoke(IpcChannels.TtsTest, voice ? { text, voice } : text),
   ttsVoiceList: () => ipcRenderer.invoke(IpcChannels.TtsVoiceList),
+  ttsStop: () => ipcRenderer.invoke(IpcChannels.TtsStop),
+  ttsSkip: () => ipcRenderer.invoke(IpcChannels.TtsSkip),
+  ttsStats: () => ipcRenderer.invoke(IpcChannels.TtsStats),
+
+  // 弹幕朗读
+  danmuReaderGet: () => ipcRenderer.invoke(IpcChannels.DanmuReaderGet),
+  danmuReaderPatch: (patch: Record<string, unknown>) =>
+    ipcRenderer.invoke(IpcChannels.DanmuReaderPatch, cleanForIpc(patch)),
+  danmuReaderStats: () => ipcRenderer.invoke(IpcChannels.DanmuReaderStats),
+  danmuReaderPreview: (sample?: string) =>
+    ipcRenderer.invoke(IpcChannels.DanmuReaderPreview, sample),
 
   // Overlay
   getOverlayPort: () => ipcRenderer.invoke(IpcChannels.ConfigGetOverlayPort),

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ttsConfig, voices } from '../store'
+import { currentPage, ttsConfig, voices } from '../store'
 import type { EventKind } from '../types'
 
 // 可分事件配音色的事件列表。和默认规则里的 TTS 触发器对齐
@@ -99,6 +99,10 @@ async function persist(): Promise<void> {
   } finally {
     saving.value = false
   }
+}
+
+function goReader(): void {
+  currentPage.value = 'reader'
 }
 
 async function test(): Promise<void> {
@@ -224,6 +228,15 @@ async function test(): Promise<void> {
       </div>
       <p class="text-xs text-slate-500">
         提示：edge-tts 走微软在线服务，需要联网。第一次测试可能稍慢。
+      </p>
+
+      <!-- 这页管的是"念什么话术"，念观众原话是另一套设置，容易找不到，给条明路 -->
+      <p class="text-xs text-slate-500">
+        想把观众发的弹幕原文念出来？去
+        <button class="text-sky-400 underline-offset-2 hover:underline" @click="goReader">
+          「弹幕朗读」
+        </button>
+        页开。
       </p>
     </section>
 

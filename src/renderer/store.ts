@@ -61,6 +61,7 @@ export type PageKey =
   | 'guessing'
   | 'pets'
   | 'ai'
+  | 'reader'
   | 'logs'
 export const currentPage = ref<PageKey>('home')
 

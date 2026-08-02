@@ -11,9 +11,12 @@ import type {
 } from '../shared/pets'
 import type { AiReplyPublicConfig } from '../shared/ai-reply'
 import type { OverlayThemeConfig } from '../shared/overlay-theme'
+import type { DanmuReaderConfig, ReaderScope } from '../shared/danmu-reader'
 
 export type {
   AiReplyPublicConfig,
+  DanmuReaderConfig,
+  ReaderScope,
   OverlayThemeConfig,
   PetConfig,
   PetDisplayItem,
@@ -322,6 +325,14 @@ export interface BilibiliAuth {
 }
 
 // 类型化 window.api，避免 renderer 各处 cast
+/** 弹幕朗读运行统计。字段与 main/services/danmu-reader.ts 的 DanmuReaderStats 对齐 */
+export interface DanmuReaderStats {
+  spoken: number
+  skipped: number
+  skipReasons: Record<string, number>
+  recent: { at: number; uname: string; text: string }[]
+}
+
 export interface ApiSurface {
   startConnection: (roomId: string) => Promise<{ ok: boolean; roomId: number }>
   stopConnection: () => Promise<{ ok: boolean }>
@@ -337,6 +348,17 @@ export interface ApiSurface {
   patchTts: (patch: Partial<TTSConfig>) => Promise<TTSConfig>
   ttsTest: (text?: string, voice?: string) => Promise<{ ok: boolean }>
   ttsVoiceList: () => Promise<VoiceOption[]>
+  ttsStop: () => Promise<{ ok: boolean }>
+  ttsSkip: () => Promise<{ ok: boolean }>
+  ttsStats: () => Promise<{ queued: number; speaking: boolean; dropped: number }>
+
+  // 弹幕朗读（念观众发的弹幕原文）
+  danmuReaderGet: () => Promise<DanmuReaderConfig>
+  danmuReaderPatch: (patch: Partial<DanmuReaderConfig>) => Promise<DanmuReaderConfig>
+  danmuReaderStats: () => Promise<DanmuReaderStats>
+  danmuReaderPreview: (
+    sample?: string
+  ) => Promise<{ ok: boolean; spoken: string; reason?: string }>
 
   getOverlayPort: () => Promise<number>
   getOverlayUrl: () => Promise<string>

@@ -16,6 +16,11 @@ import {
   normalizeOverlayThemeId,
   type OverlayThemeConfig
 } from '../../shared/overlay-theme'
+import {
+  DEFAULT_DANMU_READER_CONFIG,
+  sanitizeDanmuReaderConfig,
+  type DanmuReaderConfig
+} from '../../shared/danmu-reader'
 
 // B 站登录态。SESSDATA 是 cookie，2023 年 7 月起 B 站对游客限制 DANMU_MSG 推送，需要登录态。
 // 仅本地存储，不上传。sessdata 用 Electron safeStorage 加密（Win 上走 DPAPI，与当前用户账号绑定），
@@ -136,6 +141,7 @@ export interface AppConfigSchema {
   guessing: GuessingGlobalConfig
   pets: PetConfig
   aiReply: AiReplyConfig
+  danmuReader: DanmuReaderConfig
 }
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
@@ -250,7 +256,8 @@ const defaults: AppConfigSchema = {
   horseRace: { ...DEFAULT_HORSE_RACE_PRESET, horses: [...DEFAULT_HORSE_RACE_PRESET.horses] },
   guessing: { ...DEFAULT_GUESSING, presets: DEFAULT_GUESSING.presets.map((p) => ({ ...p, options: [...p.options] })) },
   pets: { ...DEFAULT_PET_CONFIG },
-  aiReply: { ...DEFAULT_AI_REPLY_CONFIG }
+  aiReply: { ...DEFAULT_AI_REPLY_CONFIG },
+  danmuReader: { ...DEFAULT_DANMU_READER_CONFIG }
 }
 
 export class AppConfig {
@@ -576,6 +583,29 @@ export class AppConfig {
     }
     this.setAiReply(merged)
     return this.getAiReplyPublic()
+  }
+
+  // 弹幕朗读（把观众发的弹幕原文念出来）
+  getDanmuReader(): DanmuReaderConfig {
+    const cfg = sanitizeDanmuReaderConfig(
+      this.store.get('danmuReader') as Partial<DanmuReaderConfig> | undefined
+    )
+    // voice 为空表示"跟随全局音色"；非空但已下线的话必须清掉，
+    // 否则每条弹幕合成都会抛 NoAudioReceived，表现成"朗读开了却一声不吭"
+    if (cfg.voice && !VALID_VOICE_VALUES.has(cfg.voice)) {
+      console.warn(`[AppConfig] danmuReader.voice "${cfg.voice}" 已下线，回退到跟随全局`)
+      cfg.voice = ''
+      this.store.set('danmuReader', cfg)
+    }
+    return cfg
+  }
+  setDanmuReader(config: DanmuReaderConfig): void {
+    this.store.set('danmuReader', sanitizeDanmuReaderConfig(config))
+  }
+  patchDanmuReader(patch: Partial<DanmuReaderConfig>): DanmuReaderConfig {
+    const next = sanitizeDanmuReaderConfig({ ...this.getDanmuReader(), ...patch })
+    this.setDanmuReader(next)
+    return next
   }
 
   // 互动投票 preset

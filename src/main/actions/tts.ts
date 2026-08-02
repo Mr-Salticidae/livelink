@@ -37,31 +37,68 @@ export const VOICE_OPTIONS: { value: string; label: string }[] = [
   { value: 'zh-CN-shaanxi-XiaoniNeural', label: '晓妮 · 女 · 陕西话' }
 ]
 
-export const VALID_VOICE_VALUES: ReadonlySet<string> = new Set(
-  VOICE_OPTIONS.map((v) => v.value)
-)
+export const VALID_VOICE_VALUES: ReadonlySet<string> = new Set(VOICE_OPTIONS.map((v) => v.value))
 
-const MAX_TEXT_LENGTH = 50
+// 单条文本安全上限。规则话术和弹幕朗读各自还有更严的上限，这里只是兜底，
+// 防止某条超长文本合成出十几秒音频、把后面所有播报都堵住
+const MAX_TEXT_LENGTH = 120
 const MAX_QUEUE_LENGTH = 20
+// 弹幕朗读是低优先级且高频，单独再设一个更小的上限：
+// 积压超过 6 条就说明已经念不过来了，继续排队只会让播报离现场越来越远
+const MAX_LOW_QUEUE_LENGTH = 6
 const SYNTHESIS_TIMEOUT_MS = 10_000
+const SYNTHESIS_RETRY_DELAY_MS = 400
+const PLAYBACK_TIMEOUT_MS = 60_000
+
+/**
+ * 播报优先级。礼物 / SC / 上舰这类"付费反馈"必须念到，
+ * 弹幕朗读念不过来就该丢——两者不能挤在同一个先进先出队列里。
+ */
+export type TTSPriority = 'high' | 'normal' | 'low'
+
+const RANK: Record<TTSPriority, number> = { high: 0, normal: 1, low: 2 }
+
+// 排队太久还没轮到就没有播报价值了，按优先级给不同的保质期
+const DEFAULT_TTL_MS: Record<TTSPriority, number> = {
+  high: 300_000,
+  normal: 120_000,
+  low: 45_000
+}
 
 interface QueueItem {
   text: string
   voice: string // resolve 后的 voice（已经按 eventKind 查过 perEventVoice）
+  rank: number
   enqueuedAt: number
+  expireAt: number
 }
 
 export interface EnqueueOptions {
-  /** 事件类型，TTSPlayer 用来查 perEventVoice 覆盖 */
+  /** 事件类型，TTSPlayer 用来查 perEventVoice 覆盖（多角色音色） */
   eventKind?: EventKind
-  /** 直接覆盖 voice（test 等场景用）。优先级高于 eventKind 查询 */
+  /** 直接覆盖 voice（弹幕朗读 / test 等场景用）。优先级高于 eventKind 查询 */
   voiceOverride?: string
+  /** 播报优先级，默认 normal */
+  priority?: TTSPriority
+  /** 自定义保质期（毫秒）。不传按 priority 取默认值 */
+  ttlMs?: number
+}
+
+export interface TTSStats {
+  queued: number
+  speaking: boolean
+  /** 因为队列满 / 过期被丢掉的条数（进程内累计，用来在 UI 上提示"念不过来了"） */
+  dropped: number
 }
 
 export class TTSPlayer {
   private config: TTSConfig = { ...DEFAULT_TTS_CONFIG }
   private queue: QueueItem[] = []
   private processing = false
+  private dropped = 0
+  // 每次 stop() 自增。drain 循环在每个 await 之后比对，发现变了就立刻退出，
+  // 避免"已经喊停了还在念上一条"
+  private generation = 0
   private audioWindow: BrowserWindow | null = null
   private audioWindowReady: Promise<void> | null = null
   // 把 audioWindow 作为 mainWindow 的子窗口创建，确保主窗口关闭时它一并销毁，
@@ -87,6 +124,10 @@ export class TTSPlayer {
     return { ...this.config }
   }
 
+  getStats(): TTSStats {
+    return { queued: this.queue.length, speaking: this.processing, dropped: this.dropped }
+  }
+
   enqueue(rawText: string, options?: EnqueueOptions): void {
     if (!this.config.enabled) return
     const text = (rawText ?? '').trim()
@@ -94,16 +135,49 @@ export class TTSPlayer {
     const styled = this.applyStyle(text)
     const truncated = styled.length > MAX_TEXT_LENGTH ? styled.slice(0, MAX_TEXT_LENGTH) : styled
     const voice = this.resolveVoice(options)
-
-    if (this.queue.length >= MAX_QUEUE_LENGTH) {
-      this.queue.shift() // 队列满了丢最早的，避免高频礼物时 TTS 滞后越来越远
+    const priority = options?.priority ?? 'normal'
+    const now = Date.now()
+    const item: QueueItem = {
+      text: truncated,
+      voice,
+      rank: RANK[priority],
+      enqueuedAt: now,
+      expireAt: now + (options?.ttlMs ?? DEFAULT_TTL_MS[priority])
     }
-    this.queue.push({ text: truncated, voice, enqueuedAt: Date.now() })
+
+    if (!this.makeRoomFor(item)) {
+      // 队列里全是比它更该念的东西 → 这条直接丢，不排队
+      this.dropped += 1
+      return
+    }
+    this.insertByPriority(item)
     void this.drain()
   }
 
   async test(text: string = '你好，我是 LiveLink，弹幕助手', voiceOverride?: string): Promise<void> {
-    await this.speak(this.applyStyle(text), this.resolveVoice({ voiceOverride }))
+    await this.speak(this.applyStyle(text), this.resolveVoice({ voiceOverride }), this.generation)
+  }
+
+  /** 清空队列并打断正在念的那条（主播喊停 / 断开连接时用） */
+  stop(): void {
+    this.queue = []
+    this.generation += 1
+    void this.stopPlayback()
+  }
+
+  /** 只跳过当前这条，队列里剩下的继续念 */
+  skip(): void {
+    void this.stopPlayback()
+  }
+
+  dispose(): void {
+    this.queue = []
+    this.generation += 1
+    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
+      this.audioWindow.destroy()
+    }
+    this.audioWindow = null
+    this.audioWindowReady = null
   }
 
   /** 按 options 解析 voice：voiceOverride > perEventVoice[eventKind] > 全局 voice */
@@ -124,60 +198,132 @@ export class TTSPlayer {
     return `曼波，${clean}，芜湖`
   }
 
-  dispose(): void {
-    this.queue = []
-    if (this.audioWindow && !this.audioWindow.isDestroyed()) {
-      this.audioWindow.destroy()
+  /**
+   * 为新条目腾位置。返回 false 表示"队列里的每一条都比它更该念"，调用方应丢弃新条目。
+   * 淘汰规则：先淘汰优先级最低的那一档里最旧的一条——低优先级的弹幕朗读，
+   * 念旧的不如念新的。
+   */
+  private makeRoomFor(item: QueueItem): boolean {
+    if (item.rank === RANK.low) {
+      let lowCount = this.queue.reduce((n, q) => (q.rank === RANK.low ? n + 1 : n), 0)
+      while (lowCount >= MAX_LOW_QUEUE_LENGTH) {
+        const idx = this.queue.findIndex((q) => q.rank === RANK.low)
+        if (idx < 0) break
+        this.queue.splice(idx, 1)
+        this.dropped += 1
+        lowCount -= 1
+      }
     }
-    this.audioWindow = null
-    this.audioWindowReady = null
+    if (this.queue.length < MAX_QUEUE_LENGTH) return true
+
+    let worstIdx = -1
+    let worstRank = -1
+    for (let i = 0; i < this.queue.length; i++) {
+      // 用严格大于：队列按 rank 升序排，第一个命中最大 rank 的就是那一档里最旧的
+      if (this.queue[i].rank > worstRank) {
+        worstRank = this.queue[i].rank
+        worstIdx = i
+      }
+    }
+    if (worstIdx < 0 || worstRank < item.rank) return false
+    this.queue.splice(worstIdx, 1)
+    this.dropped += 1
+    return true
+  }
+
+  /** 维持队列按 (rank 升序, enqueuedAt 升序) 排列，同优先级内仍是先进先出 */
+  private insertByPriority(item: QueueItem): void {
+    let i = this.queue.length
+    while (i > 0 && this.queue[i - 1].rank > item.rank) i -= 1
+    this.queue.splice(i, 0, item)
+  }
+
+  /** 取下一条待念的，顺手丢掉已经过期的 */
+  private dequeue(): QueueItem | null {
+    const now = Date.now()
+    while (this.queue.length > 0) {
+      const item = this.queue.shift()!
+      if (item.expireAt > now) return item
+      this.dropped += 1
+    }
+    return null
   }
 
   private async drain(): Promise<void> {
     if (this.processing) return
     this.processing = true
+    const gen = this.generation
     try {
-      while (this.queue.length > 0) {
-        const item = this.queue.shift()!
-        try {
-          await this.speak(item.text, item.voice)
-        } catch (err) {
-          console.error('[TTSPlayer] speak failed', err)
+      let current = this.dequeue()
+      let currentAudio = current ? this.synthesizeSafe(current) : null
+      while (current && currentAudio) {
+        // 先等当前这条合成完，再去队列里取下一条。
+        //
+        // 顺序很要紧：如果在 await 之前就取 next，取到的是"这一条刚入队那一瞬间"
+        // 的队列快照——那时候后一条弹幕通常还没到，next 恒为 null，预合成等于没做。
+        // 放在 await 之后，合成这 0.5~1.5s 里新到的弹幕就都能赶上这一趟。
+        const audio = await currentAudio
+        if (gen !== this.generation) return
+
+        // 当前这条播放的同时，下一条已经在合成 —— 条与条之间不再有整段静默
+        const next = this.dequeue()
+        const nextAudio = next ? this.synthesizeSafe(next) : null
+
+        if (audio && audio.length > 0) {
+          await this.play(audio)
+          if (gen !== this.generation) return
+        }
+
+        current = next
+        currentAudio = nextAudio
+        if (!current) {
+          // 播放期间可能又来了新弹幕，退出前再捞一次
+          current = this.dequeue()
+          currentAudio = current ? this.synthesizeSafe(current) : null
         }
       }
     } finally {
       this.processing = false
     }
+    // processing 置回 false 与上面最后一次 dequeue 之间仍有一个极窄的窗口，
+    // 期间进来的 enqueue 会因为 processing=true 直接返回。这里补一次兜底触发
+    if (this.queue.length > 0 && !this.processing) void this.drain()
   }
 
-  private async speak(text: string, voice: string): Promise<void> {
+  /** 供 test() 用的单条直念（不走队列） */
+  private async speak(text: string, voice: string, gen: number): Promise<void> {
     const audio = await this.synthesize(text, voice)
     if (!audio || audio.length === 0) {
       console.warn('[TTSPlayer] empty synthesis result for:', text)
       return
     }
-    const win = await this.ensureAudioWindow()
-    if (win.isDestroyed()) return
+    if (gen !== this.generation) return
+    await this.play(audio)
+  }
 
-    const dataUrl = `data:audio/mpeg;base64,${audio.toString('base64')}`
-    const script = `new Promise((resolve) => {
-      try {
-        const a = new Audio(${JSON.stringify(dataUrl)});
-        a.onended = () => resolve('ended');
-        a.onerror = () => resolve('error');
-        a.play().catch(() => resolve('play-rejected'));
-      } catch (e) {
-        resolve('exception');
-      }
-    })`
+  /** 合成失败不抛：drain 里任何一条失败都不应该中断整条队列 */
+  private async synthesizeSafe(item: QueueItem): Promise<Buffer | null> {
     try {
-      await win.webContents.executeJavaScript(script, true)
+      return await this.synthesize(item.text, item.voice)
     } catch (err) {
-      console.error('[TTSPlayer] playback failed', err)
+      console.error('[TTSPlayer] synthesize failed', err)
+      return null
     }
   }
 
   private async synthesize(text: string, voice: string): Promise<Buffer> {
+    try {
+      return await this.synthesizeOnce(text, voice)
+    } catch (err) {
+      // edge-tts 走微软在线端点，偶发握手失败很常见，重试一次基本都能过。
+      // 只retry一次：再多就会让这条播报滞后到没有意义
+      await delay(SYNTHESIS_RETRY_DELAY_MS)
+      console.warn('[TTSPlayer] synthesize retry after', (err as Error)?.message ?? err)
+      return this.synthesizeOnce(text, voice)
+    }
+  }
+
+  private async synthesizeOnce(text: string, voice: string): Promise<Buffer> {
     const c = new Communicate(text, {
       voice,
       rate: this.config.rate,
@@ -193,12 +339,69 @@ export class TTSPlayer {
     return Buffer.concat(chunks)
   }
 
+  private async play(audio: Buffer): Promise<void> {
+    let win: BrowserWindow
+    try {
+      win = await this.ensureAudioWindow()
+    } catch (err) {
+      console.error('[TTSPlayer] audio window unavailable', err)
+      return
+    }
+    if (win.isDestroyed()) return
+
+    const dataUrl = `data:audio/mpeg;base64,${audio.toString('base64')}`
+    // 把 resolve 挂到 window 上，stopPlayback() 才有办法在 pause 之后把这个 await 解开。
+    // 只 pause 不 resolve 的话 onended 永远不触发，drain 会永久卡住
+    const script = `new Promise((resolve) => {
+      try {
+        if (window.__llAudio) { try { window.__llAudio.pause() } catch (e) {} }
+        var a = new Audio(${JSON.stringify(dataUrl)});
+        var settled = false;
+        var done = function (why) {
+          if (settled) return;
+          settled = true;
+          window.__llResolve = null;
+          resolve(why);
+        };
+        window.__llAudio = a;
+        window.__llResolve = done;
+        a.onended = function () { done('ended') };
+        a.onerror = function () { done('error') };
+        a.play().catch(function () { done('play-rejected') });
+      } catch (e) {
+        resolve('exception');
+      }
+    })`
+    try {
+      await withTimeout(win.webContents.executeJavaScript(script, true), PLAYBACK_TIMEOUT_MS)
+    } catch (err) {
+      console.error('[TTSPlayer] playback failed', err)
+    }
+  }
+
+  private async stopPlayback(): Promise<void> {
+    const win = this.audioWindow
+    if (!win || win.isDestroyed()) return
+    try {
+      await win.webContents.executeJavaScript(
+        `(function () {
+          if (window.__llAudio) { try { window.__llAudio.pause() } catch (e) {} }
+          if (window.__llResolve) { try { window.__llResolve('stopped') } catch (e) {} }
+          return 'ok';
+        })()`,
+        true
+      )
+    } catch (err) {
+      console.error('[TTSPlayer] stop playback failed', err)
+    }
+  }
+
   private ensureAudioWindow(): Promise<BrowserWindow> {
     if (this.audioWindow && !this.audioWindow.isDestroyed() && this.audioWindowReady) {
       return this.audioWindowReady.then(() => this.audioWindow!)
     }
     // 关键：parent 让此窗口在主窗口关闭时自动销毁，避免进程驻留
-    this.audioWindow = new BrowserWindow({
+    const win = new BrowserWindow({
       show: false,
       width: 1,
       height: 1,
@@ -212,7 +415,41 @@ export class TTSPlayer {
         autoplayPolicy: 'no-user-gesture-required'
       }
     })
-    this.audioWindowReady = this.audioWindow.loadURL('about:blank').then(() => undefined)
-    return this.audioWindowReady.then(() => this.audioWindow!)
+    this.audioWindow = win
+    // loadURL 失败时必须把缓存的 promise 清掉，否则这个 rejected promise 会被
+    // 一直复用，之后每一条播报都失败，只能重启软件
+    const ready = win
+      .loadURL('about:blank')
+      .then(() => undefined)
+      .catch((err) => {
+        if (this.audioWindow === win) {
+          this.audioWindow = null
+          this.audioWindowReady = null
+        }
+        if (!win.isDestroyed()) win.destroy()
+        throw err
+      })
+    this.audioWindowReady = ready
+    return ready.then(() => this.audioWindow!)
   }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve(null), ms)
+    p.then(
+      (v) => {
+        clearTimeout(timer)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(timer)
+        reject(e)
+      }
+    )
+  })
 }

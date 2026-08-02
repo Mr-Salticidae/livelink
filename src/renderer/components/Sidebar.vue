@@ -9,7 +9,8 @@ const groups: { label: string; items: { key: PageKey; label: string; icon: strin
     items: [
       { key: 'home', label: '首页', icon: '◈' },
       { key: 'rules', label: '规则', icon: '☰' },
-      { key: 'tts', label: '语音', icon: '◊' }
+      { key: 'tts', label: '语音', icon: '◊' },
+      { key: 'reader', label: '弹幕朗读', icon: '❞' }
     ]
   },
   {

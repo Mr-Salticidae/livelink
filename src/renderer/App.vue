@@ -5,6 +5,7 @@ import StatusBar from './components/StatusBar.vue'
 import Home from './pages/Home.vue'
 import Rules from './pages/Rules.vue'
 import TTSSettings from './pages/TTSSettings.vue'
+import DanmuReader from './pages/DanmuReader.vue'
 import Lottery from './pages/Lottery.vue'
 import Voting from './pages/Voting.vue'
 import HorseRace from './pages/HorseRace.vue'
@@ -27,6 +28,7 @@ onMounted(() => {
         <Home v-if="currentPage === 'home'" />
         <Rules v-else-if="currentPage === 'rules'" />
         <TTSSettings v-else-if="currentPage === 'tts'" />
+        <DanmuReader v-else-if="currentPage === 'reader'" />
         <Lottery v-else-if="currentPage === 'lottery'" />
         <Voting v-else-if="currentPage === 'voting'" />
         <HorseRace v-else-if="currentPage === 'horserace'" />

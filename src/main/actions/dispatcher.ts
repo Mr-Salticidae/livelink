@@ -1,7 +1,7 @@
-import type { StandardEvent } from '../platform/adapter'
+import type { EventKind, StandardEvent } from '../platform/adapter'
 import type { Rule, ActionSpec } from '../rules/types'
 import { renderTemplate } from '../rules/template'
-import type { TTSPlayer } from './tts'
+import type { TTSPlayer, TTSPriority } from './tts'
 import type { OverlayBroadcaster } from './overlay'
 import type { LogSink } from './log'
 import type { BlindboxStore } from '../services/blindbox-store'
@@ -18,6 +18,19 @@ export interface DispatcherDeps {
   // query_wallet 用：货币名 + 新观众初始余额（首次查无记录时显示"待开户"信息）
   getCurrencyName: () => string
   getInitialBalance: () => number
+}
+
+// 播报优先级：付费反馈（礼物 / SC / 上舰 / 盲盒）必须念到，排队时插在前面；
+// 欢迎和关键词回复走 normal；弹幕朗读走 low（在 DanmuReaderService 里指定）
+const HIGH_PRIORITY_KINDS: ReadonlySet<EventKind> = new Set<EventKind>([
+  'gift.received',
+  'super.chat',
+  'guard.bought',
+  'blindbox.opened'
+])
+
+function priorityFor(kind: EventKind): TTSPriority {
+  return HIGH_PRIORITY_KINDS.has(kind) ? 'high' : 'normal'
 }
 
 export class ActionDispatcher {
@@ -66,7 +79,7 @@ export class ActionDispatcher {
     if (spec.kind === 'tts') {
       const text = spec.template ? renderTemplate(spec.template.text, ctx) : ''
       // 传 eventKind 让 ttsPlayer 按事件类型查 perEventVoice 覆盖（多角色音色）
-      this.tts.enqueue(text, { eventKind: event.kind })
+      this.tts.enqueue(text, { eventKind: event.kind, priority: priorityFor(event.kind) })
       return
     }
 

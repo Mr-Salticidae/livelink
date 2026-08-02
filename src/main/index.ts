@@ -23,6 +23,7 @@ import { WalletDepositService } from './services/wallet-deposit'
 import { PetStore } from './services/pet-store'
 import { PetService } from './services/pets'
 import { AiReplyService } from './services/ai-reply'
+import { DanmuReaderService } from './services/danmu-reader'
 import { AppConfig } from './config/store'
 import { registerIpcHandlers } from './ipc'
 import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
@@ -127,6 +128,16 @@ const engine = new RuleEngine({ bus, dispatcher })
 adapter.on((e) => bus.emit('event', e))
 engine.attach()
 engine.setRules(config.getRules())
+
+// 弹幕朗读必须在 aiReply 和 engine 之后 attach。
+// mitt 按注册顺序同步调用监听器，朗读要靠"前面两位是否已经认领了这条弹幕"
+// 来决定跳不跳过（见 services/speech-claim.ts）。顺序反了就会出现同一句念两遍
+const danmuReader = new DanmuReaderService({
+  bus,
+  tts: ttsPlayer,
+  getConfig: () => config.getDanmuReader()
+})
+danmuReader.attach()
 
 // 原始事件无条件写日志（不经规则）。让 Logs 页反映直播间实际发生的所有事，
 // 不再只显示规则命中的。规则命中的 LogAction 还会在此之上叠加额外的日志。
@@ -259,6 +270,7 @@ app.whenReady().then(async () => {
     guessing,
     pets,
     aiReply,
+    danmuReader,
     wallet,
     config,
     log,
@@ -335,6 +347,11 @@ async function cleanup(): Promise<void> {
     aiReply.dispose()
   } catch (err) {
     console.error('[main] aiReply dispose failed', err)
+  }
+  try {
+    danmuReader.dispose()
+  } catch (err) {
+    console.error('[main] danmuReader dispose failed', err)
   }
   ttsPlayer.dispose()
   engine.detach()

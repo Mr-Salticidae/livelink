@@ -23,6 +23,15 @@ export const IpcChannels = {
   // TTS
   TtsTest: 'tts:test',
   TtsVoiceList: 'tts:voice-list',
+  TtsStop: 'tts:stop',
+  TtsSkip: 'tts:skip',
+  TtsStats: 'tts:stats',
+
+  // 弹幕朗读（念观众发的弹幕原文）
+  DanmuReaderGet: 'danmu-reader:get',
+  DanmuReaderPatch: 'danmu-reader:patch',
+  DanmuReaderStats: 'danmu-reader:stats',
+  DanmuReaderPreview: 'danmu-reader:preview',
 
   // Overlay
   OverlayUrl: 'overlay:url',

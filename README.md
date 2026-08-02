@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://opensource.org/licenses/MIT)
 ![Built with Electron](https://img.shields.io/badge/Built%20with-Electron-47848F?style=flat-square&logo=electron&logoColor=white)
 
-> 给主播朋友们用的 B 站直播间桌面助手。自动欢迎、礼物感谢、屏幕特效、TTS 语音、弹幕抽奖 / 投票 / 赛马 / 养宠互动、弹幕悬浮窗（钉住穿透）、SuperChat 横幅、盲盒查询、DeepSeek AI 智能回复、OBS 观众端主题。
+> 给主播朋友们用的 B 站直播间桌面助手。自动欢迎、礼物感谢、屏幕特效、TTS 语音、弹幕朗读、弹幕抽奖 / 投票 / 赛马 / 养宠互动、弹幕悬浮窗（钉住穿透）、SuperChat 横幅、盲盒查询、DeepSeek AI 智能回复、OBS 观众端主题。
 > 立项时间：2026-05-12 · 立项人：跳蛛先生 · **当前版本：v1.4.1 · 状态：朋友内测版**
 
 > 📥 **下载安装**：点击上方绿色按钮，或前往 [Releases 页面](https://github.com/Mr-Salticidae/livelink/releases/latest) 下载 `LiveLink-Setup-x.x.x.exe`，双击即装。首次运行若被 Windows SmartScreen 拦截，点「更多信息 → 仍要运行」即可。
@@ -36,6 +36,7 @@
 | 2 | 观众弹幕关键词回复（自定义关键词 / 正则 / 粉丝牌门槛） | ✅ |
 | 3 | 礼物感谢 + OBS overlay 礼物特效（按价位 3 档动画 + 真实礼物图） | ✅ |
 | 4 | TTS 语音播报（Edge TTS 8 个中文音色，**分事件多角色**） | ✅ |
+| 4b | **弹幕朗读**（把观众发的弹幕原文念出来：范围过滤 / 垃圾净化 / 去重限流 / 独立音色） | ✅ |
 
 #### 主播专用工具（P1+）
 | # | 功能 | 状态 |

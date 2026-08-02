@@ -3,6 +3,7 @@ import type { LogSink } from '../actions/log'
 import type { Bus } from '../events/bus'
 import type { StandardEvent } from '../platform/adapter'
 import { sanitizeAiReplyConfig, type AiReplyConfig } from '../../shared/ai-reply'
+import { claimSpeech } from './speech-claim'
 
 interface DeepSeekResponse {
   choices?: Array<{ message?: { content?: string } }>
@@ -69,6 +70,9 @@ export class AiReplyService {
     this.lastGlobalAt = now
     this.perUserAt.set(userKey, now)
     this.inflight = true
+    // 这条弹幕由 AI 接管播报，弹幕朗读不要再把原文念一遍。
+    // 必须在第一个 await 之前同步打标记（详见 services/speech-claim.ts）
+    if (config.speakReply) claimSpeech(e)
     try {
       const prompt = stripTrigger(config, content).slice(0, config.maxInputLength)
       const reply = await this.askDeepSeek(config, prompt, e.user.uname || '观众')
@@ -83,7 +87,11 @@ export class AiReplyService {
           text: `AI 回复 ${e.user.uname}: ${finalReply}`
         })
       }
-      if (config.speakReply) this.tts.enqueue(finalReply, { eventKind: 'danmu.received' })
+      // priority=normal：AI 回复是对观众提问的答复，不该被弹幕朗读的洪水挤掉，
+      // 但也不该插到礼物 / SC 感谢前面
+      if (config.speakReply) {
+        this.tts.enqueue(finalReply, { eventKind: 'danmu.received', priority: 'normal' })
+      }
     } catch (err) {
       console.error('[AiReply] request failed', err)
       this.log.write({

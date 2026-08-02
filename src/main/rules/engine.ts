@@ -3,6 +3,7 @@ import type { Bus } from '../events/bus'
 import type { ActionDispatcher } from '../actions/dispatcher'
 import type { Rule, RuleMatch } from './types'
 import { buildTemplateContext, renderTemplate } from './template'
+import { claimSpeech } from '../services/speech-claim'
 
 export interface EngineDeps {
   bus: Bus
@@ -82,6 +83,13 @@ export class RuleEngine {
       // 通过冷却 → 记账 + 派发
       if (rule.cooldownSec > 0) this.cooldownGlobal.set(rule.id, now)
       if (rule.perUserCooldownSec > 0) this.cooldownPerUser.set(`${rule.id}|${e.user.uid}`, now)
+
+      // 给事件打"已被接管播报"的标记，弹幕朗读据此避免把同一句念第二遍。
+      // 必须在这里同步打——dispatch 是异步的，等它跑到 tts action 时
+      // 弹幕朗读的监听器早就跑完了（详见 services/speech-claim.ts）
+      if (rule.actions.some((a) => a.kind === 'tts' && (a.template?.text ?? '').trim())) {
+        claimSpeech(e)
+      }
 
       const ctx = buildTemplateContext(e)
       this.dispatcher.dispatch(rule, e, ctx).catch((err) => {
