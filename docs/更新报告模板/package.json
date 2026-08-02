@@ -1,6 +1,0 @@
-{
-  "name": "livelink-report-render",
-  "version": "1.0.0",
-  "main": "render.js",
-  "private": true
-}

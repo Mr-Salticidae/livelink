@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>LiveLink v1.5.0 更新报告</title>
+<style>
+/* 版式：PB Arena「简洁低疲劳 V2」—— 套用 07_skill存档/report-longimage/母版.html
+   暖白底 / 炭黑字 / 珊瑚红只占 5%-8%；无渐变、无光晕、无厚阴影 */
+:root{
+  --bg:#fafaf8; --paper:#ffffff; --ink:#171717; --muted:#6b6b68;
+  --line:#e6e5e1; --accent:#ff5a52; --accent-deep:#e6453d; --green:#3ea36e;
+  --sans:"Noto Sans SC", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* CJK 必须排在 generic monospace 之前，否则中文掉宋体 */
+  --mono:"DM Mono", Consolas, "Cascadia Mono", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", monospace;
+  --radius-sm:6px; --radius:8px; --radius-lg:12px; --radius-pill:999px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:#f1f0ec;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;font-size:14px;}
+.page{background:var(--bg);border:1px solid var(--line);border-radius:14px;margin:14px;padding:64px 76px 40px;}
+
+.eyebrow{color:var(--accent);font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.30em;margin-bottom:26px;}
+h1{margin:0;font-size:44px;font-weight:800;line-height:1.30;letter-spacing:-.01em;}
+.meta{display:flex;gap:34px;margin-top:26px;color:var(--muted);font-family:var(--mono);font-size:12px;letter-spacing:.06em;}
+.rule{border:0;border-top:1px solid var(--line);margin:34px 0 32px;}
+.lead{margin:0;font-size:17px;line-height:2.00;font-weight:400;}
+
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);margin:38px 0 0;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--paper);}
+.metrics > div{padding:24px 18px 22px;text-align:center;border-left:1px solid var(--line);}
+.metrics > div:first-child{border-left:0;}
+.m-label{color:var(--muted);font-size:11.5px;letter-spacing:.14em;}
+.m-value{margin:12px 0 10px;font-family:var(--mono);font-size:31px;font-weight:600;line-height:1;letter-spacing:-.01em;}
+.m-value.accent{color:var(--accent);}
+.m-note{color:var(--muted);font-size:11.5px;}
+
+section{margin-top:56px;padding-top:30px;border-top:1px solid var(--line);}
+.sec-head{display:flex;align-items:baseline;gap:16px;margin-bottom:26px;}
+.sec-no{color:var(--accent);font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.16em;}
+h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.005em;}
+h3{margin:34px 0 12px;font-size:15px;font-weight:700;}
+h3:first-of-type{margin-top:0;}
+p{margin:0 0 14px;font-size:14px;line-height:1.95;}
+p:last-child{margin-bottom:0;}
+b,strong{font-weight:700;}
+.hl{color:var(--accent-deep);font-weight:700;}
+code{font-family:var(--mono);font-size:12.5px;background:#f0efeb;border-radius:4px;padding:1px 5px;}
+
+ul{margin:0 0 14px;padding:0;list-style:none;}
+ul li{position:relative;padding-left:18px;margin-bottom:10px;font-size:14px;line-height:1.90;}
+ul li::before{content:"";position:absolute;left:1px;top:11px;width:5px;height:5px;border-radius:50%;background:var(--accent);}
+ul li:last-child{margin-bottom:0;}
+ol.qs{margin:0;padding:0;list-style:none;counter-reset:q;}
+ol.qs li{position:relative;counter-increment:q;padding-left:38px;margin-bottom:16px;font-size:14px;line-height:1.90;}
+ol.qs li:last-child{margin-bottom:0;}
+ol.qs li::before{content:counter(q,decimal-leading-zero);position:absolute;left:0;top:1px;color:var(--accent);font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.08em;}
+
+table{width:100%;border-collapse:collapse;margin:6px 0 16px;font-size:13.5px;}
+thead th{padding:11px 14px;text-align:left;background:#f4f3ef;color:var(--muted);font-weight:500;font-size:12px;letter-spacing:.08em;border-bottom:1px solid var(--line);}
+thead th:first-child{border-top-left-radius:var(--radius-sm);}
+thead th:last-child{border-top-right-radius:var(--radius-sm);}
+tbody td{padding:13px 14px;border-bottom:1px solid var(--line);line-height:1.75;vertical-align:top;}
+tbody tr:last-child td{border-bottom:0;}
+td.y{color:var(--green);font-weight:700;white-space:nowrap;}
+
+.callout{margin:20px 0;padding:20px 24px;border-left:2px solid var(--accent);border-radius:0 var(--radius) var(--radius) 0;background:#fdf5f4;}
+.callout .c-title{color:var(--accent-deep);font-size:12px;font-weight:700;letter-spacing:.10em;margin-bottom:10px;}
+.callout p{font-size:13.5px;line-height:1.90;}
+.quote{margin:20px 0;padding:22px 26px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--paper);font-size:15.5px;font-weight:700;line-height:1.85;}
+.redline{margin:20px 0;padding:22px 26px;border:1px solid var(--accent);border-radius:var(--radius-lg);background:#fdf5f4;}
+.redline .c-title{color:var(--accent-deep);font-size:12px;font-weight:700;letter-spacing:.10em;margin-bottom:10px;}
+.redline p{font-size:14.5px;font-weight:700;line-height:1.90;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0;}
+.box{padding:20px 22px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);}
+.box .b-title{color:var(--muted);font-size:11.5px;letter-spacing:.12em;margin-bottom:10px;}
+.box p{font-size:13.5px;line-height:1.85;}
+
+footer{margin-top:56px;padding-top:26px;border-top:1px solid var(--line);}
+.f-row{display:flex;align-items:center;justify-content:space-between;}
+.f-brand{display:flex;align-items:center;gap:13px;}
+.f-mark{display:grid;place-items:center;width:38px;height:38px;border:1px solid var(--ink);border-radius:50%;font-size:13px;font-weight:600;}
+.f-name strong{display:block;font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:.13em;}
+.f-name small{display:block;margin-top:3px;color:var(--muted);font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;}
+.f-badges{display:flex;gap:9px;}
+.badge{padding:6px 13px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--paper);color:var(--muted);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;}
+.f-foot{margin-top:24px;color:var(--muted);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="eyebrow">LIVELINK · 版本更新</div>
+  <h1>断网之后终于能自己连回来了<br>顺手把界面整个重做</h1>
+  <div class="meta">
+    <span>2026-08-02</span>
+    <span>跳蛛先生</span>
+    <span>浆pu之家</span>
+  </div>
+
+  <hr class="rule">
+
+  <p class="lead">
+    LiveLink 是我做的 B 站直播助手 —— 自动欢迎观众、感谢礼物、在直播画面飘特效，
+    还有抽奖 / 投票 / 赛马 / 竞猜这些弹幕小游戏，完全免费、只在你自己电脑上跑。
+    这次更新修好了最烦人的那个毛病：<b>直播中断网之后，它一直转圈连不上，只能整个关掉重开。</b>
+  </p>
+
+  <div class="metrics">
+    <div><div class="m-label">断线根因</div><div class="m-value">3 条</div><div class="m-note">全部实测复现</div></div>
+    <div><div class="m-label">真机验证</div><div class="m-value">22 项</div><div class="m-note">断言全部通过</div></div>
+    <div><div class="m-label">掉线判定</div><div class="m-value accent">75 秒</div><div class="m-note">以前：永远发现不了</div></div>
+    <div><div class="m-label">重连策略</div><div class="m-value accent">不放弃</div><div class="m-note">以前：20 秒就放弃</div></div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="sec-no">01</span><h2>那个「断了就再也连不上」的毛病</h2></div>
+
+    <div class="quote">
+      直播到一半网络抖了一下，LiveLink 掉线了。然后它就一直卡在「断线重连中」，
+      等多久都连不上；点「停止」再点「开始」也没用 —— 最后只能把软件整个关掉重开。
+    </div>
+
+    <p>
+      如果你遇到过，那不是你的网有问题，是软件自己的毛病。而且
+      <span class="hl">根子不在我写的代码里，在我用的那个第三方组件里</span> —— 查下来三个原因，都藏得挺深：
+    </p>
+
+    <ul>
+      <li><b>「门票」用完了不会换新的。</b>连弹幕服务器要一张临时门票，软件把第一次拿到的那张一直留着用。
+        门票过期后还是拿那张去敲门，当然进不去。这也是为什么<span class="hl">「停止再开始」救不回来</span>
+        —— 它连的还是同一张过期门票，只有整个重开才会去拿新的。</li>
+      <li><b>「停止」其实没停下来。</b>断线后点停止，后台那条连接并没有真的断掉，还在自己偷偷重连。
+        软件这边已经把它弄丢了，再也管不着。</li>
+      <li><b>连接死了但没人发现。</b>软件靠定期「打招呼」确认连接还活着，可只要有一次招呼没收到回应，
+        它就再也不打了 —— 于是界面一直显示「已连接」，实际上早就收不到任何弹幕。</li>
+    </ul>
+
+    <div class="grid2">
+      <div class="box">
+        <div class="b-title">以前</div>
+        <p>· 一直用同一张过期门票，注定连不上<br>
+           · 只重试 2 次、总共 20 秒就彻底放弃<br>
+           · 点了停止，后台还在偷偷重连<br>
+           · 明明断了，界面还显示「已连接」</p>
+      </div>
+      <div class="box">
+        <div class="b-title">现在</div>
+        <p>· 每次重连都去换一张新门票，能自己恢复<br>
+           · 一直重试（3 秒起，逐步拉到 1 分钟一次）<br>
+           · 点停止就是真的停止，不留后台连接<br>
+           · 75 秒收不到东西就判定掉线并自动重连</p>
+      </div>
+    </div>
+
+    <ul>
+      <li>分得清<b>「你家没网」</b>和<b>「网好着但连不上 B 站」</b>，状态栏会如实告诉你是哪种</li>
+      <li>电脑<b>睡眠唤醒、锁屏解锁</b>之后马上重连，不用干等</li>
+      <li>连着失败几次后会把<b>具体原因</b>写出来（比如登录态过期了），不让你盯着「重连中」瞎猜</li>
+      <li>路由器重启、拔插网线这种几分钟的断网，<span class="hl">现在能自己扛过去</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-no">02</span><h2>界面整个重做了</h2></div>
+    <p>
+      主播端换了一套全新外观，和我另外两个作品「蛛网之上」、PB 竞技场统一了风格。
+      <b>只是好看不好看的事，功能逻辑一点没动。</b>
+    </p>
+    <ul>
+      <li><b>配色</b>：从原来的灰蓝换成偏紫的深色，更沉一点，深夜直播长时间盯着不那么刺眼</li>
+      <li><b>数字</b>：换成等宽字体 —— 倒计时、余额跳动的时候不会再左右抖了</li>
+      <li><b>左边栏</b>：10 个功能按「直播 / 玩法 / 其他」分成三组，不再是平铺的一堵墙，找东西更快</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-no">03</span><h2>顺手修掉的几个小毛病</h2></div>
+    <p>都是这次把软件真正跑起来、一页一页看过去才发现的。</p>
+    <table>
+      <thead><tr><th style="width:42%">以前的毛病</th><th style="width:8%">状态</th><th>现在</th></tr></thead>
+      <tbody>
+        <tr><td>左下角版本号是写死的 —— 发布 1.4.1 时它还显示 1.4.0</td><td class="y">已修</td><td>自动跟着版本走，不会再对不上</td></tr>
+        <tr><td>观众进房的横幅一直是蓝色，不跟主题变</td><td class="y">已修</td><td>跟着你选的观众端主题走</td></tr>
+        <tr><td>连接状态显示了两遍（左边栏底部和最下面各一份）</td><td class="y">已修</td><td>只留最下面那一份</td></tr>
+        <tr><td>断网时点「开始」会卡住几十秒没反应</td><td class="y">已修</td><td>最多 10 秒就告诉你结果</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-no">04</span><h2>怎么升级</h2></div>
+    <ol class="qs">
+      <li>下载 <code>LiveLink-Setup-1.5.0.exe</code>，双击安装，<b>老版本直接覆盖</b>，不用先卸载。</li>
+      <li>你的<b>配置、规则、哈松币账本全部保留</b>，装完打开就是原样。</li>
+      <li>如果弹出 Windows 的蓝色提示框，点<b>「更多信息 → 仍要运行」</b>
+        —— 因为没买微软的签名证书，不是病毒。</li>
+      <li><b>观众看到的画面基本没变</b>：欢迎、礼物特效、小游戏卡片还是你选的那套主题。</li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-no">05</span><h2>接下来打算做的</h2></div>
+    <ol class="qs">
+      <li>把重连这套机制在<b>更长时间的真实直播里再验证一轮</b>（这次是模拟断网测的）。</li>
+      <li>观众端那几套主题<b>再细调一遍</b>，让礼物特效和弹幕板的风格更统一。</li>
+      <li>把<b>日志页</b>做得更好用，出问题时你能自己看出个大概，而不是只能来问我。</li>
+    </ol>
+
+    <div class="redline">
+      <div class="c-title">反馈问题时，请务必带上这四样</div>
+      <p>大概几点 · 房间号 · 当时在做什么 · 软件左下角显示的状态 —— 有这四样，我排查起来能快好几倍。</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="f-row">
+      <div class="f-brand">
+        <div class="f-mark">LL</div>
+        <div class="f-name">
+          <strong>LIVELINK</strong>
+          <small>跳蛛先生</small>
+        </div>
+      </div>
+      <div class="f-badges">
+        <span class="badge">v1.5.0</span>
+        <span class="badge">完全免费</span>
+        <span class="badge">本地运行</span>
+        <span class="badge">不上传数据</span>
+      </div>
+    </div>
+    <div class="f-foot">github.com/Mr-Salticidae/livelink · 有问题随时找我</div>
+  </footer>
+
+</div>
+<script>document.title = "H" + document.documentElement.scrollHeight;</script>
+</body>
+</html>
