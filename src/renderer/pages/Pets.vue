@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { petState } from '../store'
 import type { PetConfig, PetDisplayItem } from '../types'
 import { PET_LEVEL_EXP, PET_SPECIES } from '../../shared/pets'
+import { assetUrl } from '../asset-url'
 
 const config = ref<PetConfig>({ ...petState.value.config })
 const topPets = ref<PetDisplayItem[]>([])
@@ -190,14 +191,24 @@ function expPct(item: PetDisplayItem): number {
             </div>
             <code class="rounded bg-slate-900 px-2 py-1 text-xs text-slate-300">{{ species.key }}</code>
           </div>
-          <div class="mt-3 flex items-end justify-around rounded-lg bg-slate-900/50 px-2 py-3">
-            <img
+          <!-- 三阶排成等宽三格：原来是 justify-around 平铺，三张 64px 的图之间
+               只剩 2px 间距，挤成一团分不出是三只还是一只。
+               顺便把阶段名显示出来 —— 之前它只活在 alt 里，只有图挂了才看得见 -->
+          <div class="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-slate-900/50 px-2 py-3">
+            <div
               v-for="stage in [1, 2, 3]"
               :key="stage"
-              :src="species.assets[stage]"
-              class="h-16 w-16 object-contain"
-              :alt="species.stageNames[stage]"
-            />
+              class="flex flex-col items-center gap-1"
+            >
+              <img
+                :src="assetUrl(species.assets[stage])"
+                class="h-14 w-14 object-contain"
+                :alt="species.stageNames[stage]"
+              />
+              <span class="text-[11px] leading-none text-slate-500">
+                {{ species.stageNames[stage] }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -214,7 +225,11 @@ function expPct(item: PetDisplayItem): number {
           :key="item.ownerUid + item.pet.id"
           class="flex items-center gap-3 rounded-xl bg-slate-950/50 px-3 py-3"
         >
-          <img :src="item.species.assets[item.pet.stage]" class="h-16 w-16 object-contain" />
+          <img
+            :src="assetUrl(item.species.assets[item.pet.stage])"
+            class="h-16 w-16 object-contain"
+            :alt="item.species.stageNames[item.pet.stage]"
+          />
           <div class="min-w-0 flex-1">
             <div class="flex items-center justify-between gap-2">
               <span class="truncate text-sm font-medium text-slate-100">{{ item.pet.nickname }}</span>

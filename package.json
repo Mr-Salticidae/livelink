@@ -1,6 +1,6 @@
 {
   "name": "livelink",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "B 站直播弹幕+礼物插件 — 给非技术主播朋友的桌面助手",
   "main": "./out/main/index.js",
   "author": "跳蛛先生",
@@ -25,7 +25,8 @@
     "package": "electron-vite build && electron-builder --win --config electron-builder.yml",
     "package:dir": "electron-vite build && electron-builder --win --dir --config electron-builder.yml",
     "verify:reader": "esbuild scripts/verify-danmu-reader.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-danmu-reader.cjs --external:electron --log-level=warning && node node_modules/.cache/verify-danmu-reader.cjs",
-    "verify:song": "esbuild scripts/verify-song-request.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-song-request.cjs --external:electron --log-level=warning && node node_modules/.cache/verify-song-request.cjs"
+    "verify:song": "esbuild scripts/verify-song-request.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-song-request.cjs --external:electron --log-level=warning && node node_modules/.cache/verify-song-request.cjs",
+    "verify:assets": "esbuild scripts/verify-assets.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-assets.cjs --external:electron --log-level=warning && node node_modules/.cache/verify-assets.cjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
