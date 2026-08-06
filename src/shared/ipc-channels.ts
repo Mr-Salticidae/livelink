@@ -33,6 +33,19 @@ export const IpcChannels = {
   DanmuReaderStats: 'danmu-reader:stats',
   DanmuReaderPreview: 'danmu-reader:preview',
 
+  // 弹幕点歌台
+  SongConfigGet: 'song:config:get',
+  SongConfigPatch: 'song:config:patch',
+  SongState: 'song:state',
+  SongStateUpdate: 'song:state-update', // 主→渲染 push
+  SongSetOpen: 'song:set-open',
+  SongNext: 'song:next',
+  SongTop: 'song:top',
+  SongRemove: 'song:remove',
+  SongClearQueue: 'song:clear-queue',
+  SongClearHistory: 'song:clear-history',
+  SongAddByHost: 'song:add',
+
   // Overlay
   OverlayUrl: 'overlay:url',
   OverlayStatus: 'overlay:status',

@@ -20,6 +20,7 @@ import IntroBanner from './components/IntroBanner.vue'
 import Celebration from './components/Celebration.vue'
 import PetDock from './components/PetDock.vue'
 import PetCard from './components/PetCard.vue'
+import SongBoard from './components/SongBoard.vue'
 import type { PetDisplayItem } from '../shared/pets'
 import { DEFAULT_OVERLAY_THEME, normalizeOverlayThemeId, type OverlayThemeId } from '../shared/overlay-theme'
 
@@ -223,6 +224,55 @@ const petDockItems = ref<PetDisplayItem[]>([])
 const petDockOffsetY = ref(0)
 const activePetCard = ref<PetCardItem | null>(null)
 const PET_CARD_VISIBLE_MS = 6500
+
+// 点歌板：常驻组件，靠主进程推全量状态，自己不维护增量
+interface SongBoardItem {
+  id: string
+  title: string
+  uname: string
+  cost: number
+  source: 'danmu' | 'host'
+}
+interface SongBoardState {
+  enabled: boolean
+  corner: string
+  open: boolean
+  keyword: string
+  cost: number
+  currencyName: string
+  current: SongBoardItem | null
+  queue: SongBoardItem[]
+  queueTotal: number
+}
+const songBoard = ref<SongBoardState>({
+  enabled: false,
+  corner: 'top-right',
+  open: true,
+  keyword: '点歌',
+  cost: 0,
+  currencyName: '哈松币',
+  current: null,
+  queue: [],
+  queueTotal: 0
+})
+// 一首都没有时整块隐藏：没人点歌的直播不该在画面上常年挂一个空框
+const songBoardVisible = computed(
+  () =>
+    songBoard.value.enabled &&
+    (songBoard.value.current !== null || songBoard.value.queueTotal > 0)
+)
+const songBoardPositionClass = computed(() => {
+  switch (songBoard.value.corner) {
+    case 'top-left':
+      return 'left-4 top-4'
+    case 'bottom-left':
+      return 'bottom-4 left-4'
+    case 'bottom-right':
+      return 'bottom-4 right-4'
+    default:
+      return 'right-4 top-4'
+  }
+})
 const overlayThemeId = ref<OverlayThemeId>(DEFAULT_OVERLAY_THEME.id)
 
 // 开场招牌：游戏启动那 2.4 秒显示
@@ -740,6 +790,22 @@ onMounted(() => {
     activeGuessing.value = null
   })
 
+  on<OverlayPayload>('song.board.update', (msg) => {
+    const x = msg.extra as Partial<SongBoardState> | undefined
+    if (!x) return
+    songBoard.value = {
+      enabled: Boolean(x.enabled),
+      corner: typeof x.corner === 'string' ? x.corner : 'top-right',
+      open: x.open !== false,
+      keyword: typeof x.keyword === 'string' ? x.keyword : '点歌',
+      cost: typeof x.cost === 'number' ? x.cost : 0,
+      currencyName: typeof x.currencyName === 'string' ? x.currencyName : '哈松币',
+      current: x.current ?? null,
+      queue: Array.isArray(x.queue) ? x.queue : [],
+      queueTotal: typeof x.queueTotal === 'number' ? x.queueTotal : 0
+    }
+  })
+
   on<OverlayPayload>('pet.dock.update', (msg) => {
     const x = msg.extra as { enabled?: boolean; dock?: PetDisplayItem[]; dockOffsetY?: number } | undefined
     petDockEnabled.value = Boolean(x?.enabled)
@@ -1088,6 +1154,19 @@ onMounted(() => {
         :counts="activeVotingResult.counts"
         :total-votes="activeVotingResult.totalVotes"
         :winner-key="activeVotingResult.winnerKey"
+      />
+    </div>
+
+    <!-- 常驻点歌板 -->
+    <div v-if="songBoardVisible" class="absolute z-20" :class="songBoardPositionClass">
+      <SongBoard
+        :open="songBoard.open"
+        :keyword="songBoard.keyword"
+        :cost="songBoard.cost"
+        :currency-name="songBoard.currencyName"
+        :current="songBoard.current"
+        :queue="songBoard.queue"
+        :queue-total="songBoard.queueTotal"
       />
     </div>
 

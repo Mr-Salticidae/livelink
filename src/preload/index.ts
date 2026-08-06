@@ -56,6 +56,24 @@ const api = {
   danmuReaderPreview: (sample?: string) =>
     ipcRenderer.invoke(IpcChannels.DanmuReaderPreview, sample),
 
+  // 弹幕点歌台
+  songConfigGet: () => ipcRenderer.invoke(IpcChannels.SongConfigGet),
+  songConfigPatch: (patch: Record<string, unknown>) =>
+    ipcRenderer.invoke(IpcChannels.SongConfigPatch, cleanForIpc(patch)),
+  songState: () => ipcRenderer.invoke(IpcChannels.SongState),
+  songSetOpen: (open: boolean) => ipcRenderer.invoke(IpcChannels.SongSetOpen, open),
+  songNext: () => ipcRenderer.invoke(IpcChannels.SongNext),
+  songTop: (id: string) => ipcRenderer.invoke(IpcChannels.SongTop, id),
+  songRemove: (id: string) => ipcRenderer.invoke(IpcChannels.SongRemove, id),
+  songClearQueue: () => ipcRenderer.invoke(IpcChannels.SongClearQueue),
+  songClearHistory: () => ipcRenderer.invoke(IpcChannels.SongClearHistory),
+  songAddByHost: (title: string) => ipcRenderer.invoke(IpcChannels.SongAddByHost, title),
+  onSongState: (cb: (s: unknown) => void) => {
+    const handler = (_: IpcRendererEvent, s: unknown): void => cb(s)
+    ipcRenderer.on(IpcChannels.SongStateUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.SongStateUpdate, handler)
+  },
+
   // Overlay
   getOverlayPort: () => ipcRenderer.invoke(IpcChannels.ConfigGetOverlayPort),
   getOverlayUrl: () => ipcRenderer.invoke(IpcChannels.OverlayUrl),

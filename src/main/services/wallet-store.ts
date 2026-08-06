@@ -173,6 +173,46 @@ export class WalletStore {
     this.store.set('records', all)
   }
 
+  /**
+   * 消费扣费（点歌这类非押注的花销）。余额不够时**一分不扣**，返回 false——
+   * 和 deduct 的"有多少扣多少"语义不同：押注可以少押，买东西不能付一半。
+   * 也不累加 totalBet，否则点歌会污染竞猜的押注统计。
+   */
+  charge(
+    roomId: number | string,
+    uid: string,
+    uname: string,
+    amount: number,
+    initialBalance: number
+  ): boolean {
+    if (!Number.isFinite(amount) || amount <= 0) return true // 免费，视作扣费成功
+    const entry = this.getOrCreate(roomId, uid, uname, initialBalance)
+    if (entry.balance < amount) return false
+
+    const rid = String(roomId)
+    const k = WalletStore.keyOf(uid, uname)
+    const all = this.store.get('records')
+    const room = all[rid] ?? {}
+    room[k] = { ...entry, balance: entry.balance - amount, lastActiveAt: Date.now() }
+    all[rid] = room
+    this.store.set('records', all)
+    return true
+  }
+
+  /** charge 的原路退回（主播删歌 / 观众撤销点歌）。同样不碰 totalBet / totalWon */
+  refundCharge(roomId: number | string, uid: string, uname: string, amount: number): void {
+    if (!Number.isFinite(amount) || amount <= 0) return
+    const rid = String(roomId)
+    const k = WalletStore.keyOf(uid, uname)
+    const all = this.store.get('records')
+    const room = all[rid] ?? {}
+    const entry = room[k]
+    if (!entry) return
+    room[k] = { ...entry, balance: entry.balance + amount, lastActiveAt: Date.now() }
+    all[rid] = room
+    this.store.set('records', all)
+  }
+
   /** 查询某观众余额 */
   query(roomId: number | string, uid: string, uname: string): WalletEntry | null {
     const rid = String(roomId)

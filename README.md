@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://opensource.org/licenses/MIT)
 ![Built with Electron](https://img.shields.io/badge/Built%20with-Electron-47848F?style=flat-square&logo=electron&logoColor=white)
 
-> 给主播朋友们用的 B 站直播间桌面助手。自动欢迎、礼物感谢、屏幕特效、TTS 语音、弹幕朗读、弹幕抽奖 / 投票 / 赛马 / 养宠互动、弹幕悬浮窗（钉住穿透）、SuperChat 横幅、盲盒查询、DeepSeek AI 智能回复、OBS 观众端主题。
+> 给主播朋友们用的 B 站直播间桌面助手。自动欢迎、礼物感谢、屏幕特效、TTS 语音、弹幕朗读、弹幕点歌台、弹幕抽奖 / 投票 / 赛马 / 养宠互动、弹幕悬浮窗（钉住穿透）、SuperChat 横幅、盲盒查询、DeepSeek AI 智能回复、OBS 观众端主题。
 > 立项时间：2026-05-12 · 立项人：跳蛛先生 · **当前版本：v1.4.1 · 状态：朋友内测版**
 
 > 📥 **下载安装**：点击上方绿色按钮，或前往 [Releases 页面](https://github.com/Mr-Salticidae/livelink/releases/latest) 下载 `LiveLink-Setup-x.x.x.exe`，双击即装。首次运行若被 Windows SmartScreen 拦截，点「更多信息 → 仍要运行」即可。
@@ -57,6 +57,7 @@
 | 14 | 曼波播报风格（TTS 轻快抽象预设，不克隆具体人物声线） | ✅ |
 | 15 | DeepSeek AI 智能回复（主播自备 API Key，默认关闭，不填 Key 不产生费用） | ✅ |
 | 16 | OBS 观众端主题（樱花甜心 / 糖果泡泡 / 霓虹夜场 / 经典简约） | ✅ |
+| 17 | **弹幕点歌台**（弹幕点歌 → 队列 → OBS 点歌板；可设门槛 / 消耗货币，删歌自动退币） | ✅ |
 
 ### 后续规划
 
@@ -64,7 +65,6 @@
 |---|---|---|
 | # | 功能 | 状态 |
 |---|---|---|
-| 17 | 简单点歌队列 | P1 剩余 |
 | 18 | 抖音 / 虎牙适配器 | P3 |
 
 ## 三、技术栈（已敲定，详见 ARCHITECTURE.md）

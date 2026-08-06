@@ -24,6 +24,8 @@ import { PetStore } from './services/pet-store'
 import { PetService } from './services/pets'
 import { AiReplyService } from './services/ai-reply'
 import { DanmuReaderService } from './services/danmu-reader'
+import { SongStore } from './services/song-store'
+import { SongRequestService } from './services/song-request'
 import { AppConfig } from './config/store'
 import { registerIpcHandlers } from './ipc'
 import { IpcChannels, type ConnectionStatus } from '../shared/ipc-channels'
@@ -112,6 +114,12 @@ overlayController.registerSocketInitPusher((socket) => {
     }
   })
 })
+// OBS 浏览器源每次刷新都是一张白纸：点歌板是常驻组件，不重推的话
+// 刷新后要等下一次有人点歌才会重新出现
+overlayController.registerSocketInitPusher((socket) => {
+  const msg = songRequest.boardMessage()
+  socket.emit(msg.kind, msg)
+})
 const dispatcher = new ActionDispatcher({
   tts: ttsPlayer,
   overlay: overlayBroadcaster,
@@ -129,8 +137,25 @@ adapter.on((e) => bus.emit('event', e))
 engine.attach()
 engine.setRules(config.getRules())
 
+// 点歌台也要在弹幕朗读之前 attach：它会把「点歌 晴天」这条指令认领掉，
+// 否则朗读会把这条命令原样念出来
+const songStore = new SongStore()
+const songRequest = new SongRequestService({
+  bus,
+  tts: ttsPlayer,
+  log,
+  overlay: overlayBroadcaster,
+  wallet,
+  store: songStore,
+  getConfig: () => config.getSongRequest(),
+  getCurrentRoomId: () => adapter.currentRoomId,
+  getInitialBalance: () => config.getGuessing().initialBalance,
+  getCurrencyName: () => config.getGuessing().currencyName
+})
+songRequest.attach()
+
 // 弹幕朗读必须在 aiReply 和 engine 之后 attach。
-// mitt 按注册顺序同步调用监听器，朗读要靠"前面两位是否已经认领了这条弹幕"
+// mitt 按注册顺序同步调用监听器，朗读要靠"前面几位是否已经认领了这条弹幕"
 // 来决定跳不跳过（见 services/speech-claim.ts）。顺序反了就会出现同一句念两遍
 const danmuReader = new DanmuReaderService({
   bus,
@@ -271,6 +296,7 @@ app.whenReady().then(async () => {
     pets,
     aiReply,
     danmuReader,
+    songRequest,
     wallet,
     config,
     log,
@@ -352,6 +378,11 @@ async function cleanup(): Promise<void> {
     danmuReader.dispose()
   } catch (err) {
     console.error('[main] danmuReader dispose failed', err)
+  }
+  try {
+    songRequest.dispose()
+  } catch (err) {
+    console.error('[main] songRequest dispose failed', err)
   }
   ttsPlayer.dispose()
   engine.detach()

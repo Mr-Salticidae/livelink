@@ -21,6 +21,11 @@ import {
   sanitizeDanmuReaderConfig,
   type DanmuReaderConfig
 } from '../../shared/danmu-reader'
+import {
+  DEFAULT_SONG_REQUEST_CONFIG,
+  sanitizeSongRequestConfig,
+  type SongRequestConfig
+} from '../../shared/song-request'
 
 // B 站登录态。SESSDATA 是 cookie，2023 年 7 月起 B 站对游客限制 DANMU_MSG 推送，需要登录态。
 // 仅本地存储，不上传。sessdata 用 Electron safeStorage 加密（Win 上走 DPAPI，与当前用户账号绑定），
@@ -142,6 +147,7 @@ export interface AppConfigSchema {
   pets: PetConfig
   aiReply: AiReplyConfig
   danmuReader: DanmuReaderConfig
+  songRequest: SongRequestConfig
 }
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
@@ -257,7 +263,8 @@ const defaults: AppConfigSchema = {
   guessing: { ...DEFAULT_GUESSING, presets: DEFAULT_GUESSING.presets.map((p) => ({ ...p, options: [...p.options] })) },
   pets: { ...DEFAULT_PET_CONFIG },
   aiReply: { ...DEFAULT_AI_REPLY_CONFIG },
-  danmuReader: { ...DEFAULT_DANMU_READER_CONFIG }
+  danmuReader: { ...DEFAULT_DANMU_READER_CONFIG },
+  songRequest: { ...DEFAULT_SONG_REQUEST_CONFIG }
 }
 
 export class AppConfig {
@@ -605,6 +612,21 @@ export class AppConfig {
   patchDanmuReader(patch: Partial<DanmuReaderConfig>): DanmuReaderConfig {
     const next = sanitizeDanmuReaderConfig({ ...this.getDanmuReader(), ...patch })
     this.setDanmuReader(next)
+    return next
+  }
+
+  // 弹幕点歌台
+  getSongRequest(): SongRequestConfig {
+    return sanitizeSongRequestConfig(
+      this.store.get('songRequest') as Partial<SongRequestConfig> | undefined
+    )
+  }
+  setSongRequest(config: SongRequestConfig): void {
+    this.store.set('songRequest', sanitizeSongRequestConfig(config))
+  }
+  patchSongRequest(patch: Partial<SongRequestConfig>): SongRequestConfig {
+    const next = sanitizeSongRequestConfig({ ...this.getSongRequest(), ...patch })
+    this.setSongRequest(next)
     return next
   }
 

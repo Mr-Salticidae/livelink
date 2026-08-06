@@ -12,11 +12,23 @@ import type {
 import type { AiReplyPublicConfig } from '../shared/ai-reply'
 import type { OverlayThemeConfig } from '../shared/overlay-theme'
 import type { DanmuReaderConfig, ReaderScope } from '../shared/danmu-reader'
+import type {
+  SongBoardCorner,
+  SongItem,
+  SongQueueState,
+  SongRequestConfig,
+  SongScope
+} from '../shared/song-request'
 
 export type {
   AiReplyPublicConfig,
   DanmuReaderConfig,
   ReaderScope,
+  SongBoardCorner,
+  SongItem,
+  SongQueueState,
+  SongRequestConfig,
+  SongScope,
   OverlayThemeConfig,
   PetConfig,
   PetDisplayItem,
@@ -359,6 +371,19 @@ export interface ApiSurface {
   danmuReaderPreview: (
     sample?: string
   ) => Promise<{ ok: boolean; spoken: string; reason?: string }>
+
+  // 弹幕点歌台
+  songConfigGet: () => Promise<SongRequestConfig>
+  songConfigPatch: (patch: Partial<SongRequestConfig>) => Promise<SongRequestConfig>
+  songState: () => Promise<SongQueueState>
+  songSetOpen: (open: boolean) => Promise<SongQueueState>
+  songNext: () => Promise<SongQueueState>
+  songTop: (id: string) => Promise<SongQueueState>
+  songRemove: (id: string) => Promise<SongQueueState>
+  songClearQueue: () => Promise<SongQueueState>
+  songClearHistory: () => Promise<SongQueueState>
+  songAddByHost: (title: string) => Promise<SongQueueState>
+  onSongState: (cb: (s: SongQueueState) => void) => () => void
 
   getOverlayPort: () => Promise<number>
   getOverlayUrl: () => Promise<string>

@@ -19,6 +19,8 @@ import type { PetService } from './services/pets'
 import type { AiReplyService } from './services/ai-reply'
 import type { DanmuReaderService } from './services/danmu-reader'
 import type { DanmuReaderConfig } from '../shared/danmu-reader'
+import type { SongRequestService } from './services/song-request'
+import type { SongRequestConfig } from '../shared/song-request'
 import type { WalletStore } from './services/wallet-store'
 import type { GuessingGlobalConfig } from './config/store'
 import type { PetConfig } from '../shared/pets'
@@ -41,6 +43,7 @@ export interface IpcDeps {
   pets: PetService
   aiReply: AiReplyService
   danmuReader: DanmuReaderService
+  songRequest: SongRequestService
   wallet: WalletStore
   config: AppConfig
   log: LogSink
@@ -62,6 +65,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     pets,
     aiReply,
     danmuReader,
+    songRequest,
     wallet,
     config,
     log,
@@ -256,6 +260,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     // 换房间 / 重开时清掉上一场残留的播报队列和朗读冷却记录
     ttsPlayer.stop()
     danmuReader.resetRuntime()
+    // 点歌队列本身按房间存盘、不清；这里清的是内存里的冷却记录和房间缓存
+    songRequest.resetRuntime()
     pushStatus({ state: 'validating', roomInput: String(roomInput) })
     try {
       // 把 B 站登录态（如有）一并传给 adapter，让 lib 用 SESSDATA 做 HTTP 预请求拿登录态 token
@@ -283,6 +289,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     // 不清的话会在断开后继续念上一两分钟
     ttsPlayer.stop()
     danmuReader.resetRuntime()
+    songRequest.resetRuntime()
     pushStatus({ state: 'idle' })
     return { ok: true }
   })
@@ -617,6 +624,31 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       const friendly = toFriendlyError(err)
       throw new Error(friendly.message)
     }
+  })
+
+  // ─── 弹幕点歌台 ──────────────────────────────────────────────
+  ipcMain.handle(IpcChannels.SongConfigGet, () => config.getSongRequest())
+  ipcMain.handle(IpcChannels.SongConfigPatch, (_e, patch: Partial<SongRequestConfig>) => {
+    const next = config.patchSongRequest(patch)
+    // 配置里有 showBoard / boardLimit / boardCorner，改完必须立刻重推一次，
+    // 否则 OBS 上的点歌板要等下一次有人点歌才更新
+    songRequest.pushBoard()
+    return next
+  })
+  ipcMain.handle(IpcChannels.SongState, () => songRequest.getState())
+  ipcMain.handle(IpcChannels.SongSetOpen, (_e, open: boolean) => songRequest.setOpen(Boolean(open)))
+  ipcMain.handle(IpcChannels.SongNext, () => songRequest.next())
+  ipcMain.handle(IpcChannels.SongTop, (_e, id: string) => songRequest.moveTop(String(id)))
+  ipcMain.handle(IpcChannels.SongRemove, (_e, id: string) => songRequest.remove(String(id)))
+  ipcMain.handle(IpcChannels.SongClearQueue, () => songRequest.clearQueue())
+  ipcMain.handle(IpcChannels.SongClearHistory, () => songRequest.clearHistory())
+  ipcMain.handle(IpcChannels.SongAddByHost, (_e, title: string) => {
+    const r = songRequest.addByHost(String(title ?? ''))
+    if (!r.ok) throw new Error(r.message ?? '加歌失败')
+    return songRequest.getState()
+  })
+  songRequest.onStatusChange((s) => {
+    deps.getMainWindow()?.webContents.send(IpcChannels.SongStateUpdate, s)
   })
 
   // ─── 日志 ────────────────────────────────────────────────────
