@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { IpcChannels } from '../shared/ipc-channels'
+import type { DanmuOverlaySettings } from '../shared/danmu-display'
 
 // Electron IPC 用 structuredClone 序列化参数。Vue 3 的 reactive Proxy
 // 不能直接 clone，传 Proxy 对象（含嵌套数组 / 对象）会炸 `An object could not be cloned`。
@@ -92,6 +93,13 @@ const api = {
   danmuOverlayPinToggle: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayPinToggle),
   danmuOverlayStatus: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayStatus),
   getDanmuOverlaySettings: () => ipcRenderer.invoke(IpcChannels.DanmuOverlayGetSettings),
+  patchDanmuOverlaySettings: (patch: Partial<DanmuOverlaySettings>) =>
+    ipcRenderer.invoke(IpcChannels.DanmuOverlayPatchSettings, cleanForIpc(patch)),
+  onDanmuOverlaySettings: (cb: (settings: DanmuOverlaySettings) => void) => {
+    const handler = (_: IpcRendererEvent, settings: DanmuOverlaySettings): void => cb(settings)
+    ipcRenderer.on(IpcChannels.DanmuOverlaySettingsUpdate, handler)
+    return () => ipcRenderer.removeListener(IpcChannels.DanmuOverlaySettingsUpdate, handler)
+  },
   onDanmuOverlayStatus: (cb: (s: { enabled: boolean; pinned: boolean }) => void) => {
     const handler = (_: IpcRendererEvent, s: { enabled: boolean; pinned: boolean }): void => cb(s)
     ipcRenderer.on(IpcChannels.DanmuOverlayStatusUpdate, handler)

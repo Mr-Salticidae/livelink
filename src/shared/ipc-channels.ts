@@ -61,6 +61,8 @@ export const IpcChannels = {
   DanmuOverlayStatusUpdate: 'danmu-overlay:status-update',
   DanmuOverlayPinnedUpdate: 'danmu-overlay:pinned-update', // 主→子窗 pinned 状态推送
   DanmuOverlayGetSettings: 'danmu-overlay:get-settings',
+  DanmuOverlayPatchSettings: 'danmu-overlay:patch-settings',
+  DanmuOverlaySettingsUpdate: 'danmu-overlay:settings-update', // 主→子窗实时推送外观变更
   DanmuOverlayEvent: 'danmu-overlay:event', // 主→子窗 push 弹幕 / 礼物事件
   DanmuOverlayRoomStats: 'danmu-overlay:room-stats', // 主→子窗 push 在线人数
   DanmuOverlayResizeStart: 'danmu-overlay:resize-start', // 子窗→主：开始自定义拖拽缩放

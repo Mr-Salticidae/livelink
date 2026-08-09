@@ -5,6 +5,8 @@
     "src/renderer/**/*.vue",
     "src/overlay/**/*",
     "src/overlay/**/*.vue",
+    "src/danmu-overlay/**/*",
+    "src/danmu-overlay/**/*.vue",
     "src/preload/index.d.ts",
     "src/shared/**/*"
   ],

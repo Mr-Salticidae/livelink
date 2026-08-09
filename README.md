@@ -9,7 +9,7 @@
 ![Built with Electron](https://img.shields.io/badge/Built%20with-Electron-47848F?style=flat-square&logo=electron&logoColor=white)
 
 > 给主播朋友们用的 B 站直播间桌面助手。自动欢迎、礼物感谢、屏幕特效、TTS 语音、弹幕朗读、弹幕点歌台、弹幕抽奖 / 投票 / 赛马 / 养宠互动、弹幕悬浮窗（钉住穿透）、SuperChat 横幅、盲盒查询、DeepSeek AI 智能回复、OBS 观众端主题。
-> 立项时间：2026-05-12 · 立项人：跳蛛先生 · **当前版本：v1.4.1 · 状态：朋友内测版**
+> 立项时间：2026-05-12 · 立项人：跳蛛先生 · **当前版本：v1.8.0 · 状态：朋友内测版**
 
 > 📥 **下载安装**：点击上方绿色按钮，或前往 [Releases 页面](https://github.com/Mr-Salticidae/livelink/releases/latest) 下载 `LiveLink-Setup-x.x.x.exe`，双击即装。首次运行若被 Windows SmartScreen 拦截，点「更多信息 → 仍要运行」即可。
 
@@ -41,8 +41,8 @@
 #### 主播专用工具（P1+）
 | # | 功能 | 状态 |
 |---|---|---|
-| 5 | 主播弹幕悬浮窗（alwaysOnTop 子窗 / 钉住模式 / 鼠标穿透 / 在线人数 / 新弹幕高亮淡出） | ✅ |
-| 6 | OBS 弹幕信息板（给观众看，**任意位置拖动**） | ✅ |
+| 5 | 主播弹幕悬浮窗（置顶 / 钉住穿透 / 字体、透明度、颜色、动画与停留时间可调） | ✅ |
+| 6 | OBS 弹幕信息板（给观众看，**任意位置拖动** + 完整样式面板与即时预览） | ✅ |
 | 7 | SuperChat 横幅展示（按价位 4 档视觉：basic / premium / epic / legendary 屏幕中央） | ✅ |
 | 8 | 盲盒投喂记录查询（弹幕"查盲盒"→ Overlay 盈亏卡） | ✅ |
 

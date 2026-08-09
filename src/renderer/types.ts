@@ -13,6 +13,11 @@ import type { AiReplyPublicConfig } from '../shared/ai-reply'
 import type { OverlayThemeConfig } from '../shared/overlay-theme'
 import type { DanmuReaderConfig, ReaderScope } from '../shared/danmu-reader'
 import type {
+  DanmuBoardConfig,
+  DanmuBoardPosition,
+  DanmuOverlaySettings
+} from '../shared/danmu-display'
+import type {
   SongBoardCorner,
   SongItem,
   SongQueueState,
@@ -23,6 +28,9 @@ import type {
 export type {
   AiReplyPublicConfig,
   DanmuReaderConfig,
+  DanmuBoardConfig,
+  DanmuBoardPosition,
+  DanmuOverlaySettings,
   ReaderScope,
   SongBoardCorner,
   SongItem,
@@ -115,22 +123,6 @@ export interface OverlayState {
   url: string
   fatalError: string | null
   retrying: boolean
-}
-
-// OBS 弹幕信息板
-// 0.7.0 起 position 从枚举 4 角改为任意 { x, y } 百分比
-export interface DanmuBoardPosition {
-  x: number // 0-100 (%)
-  y: number // 0-100 (%)
-}
-export interface DanmuBoardConfig {
-  enabled: boolean
-  position: DanmuBoardPosition
-  maxLines: number
-  fontSize: number
-  showGift: boolean
-  width: number
-  maxHeightPct: number
 }
 
 // 竞猜
@@ -397,13 +389,19 @@ export interface ApiSurface {
   danmuOverlayToggle: () => Promise<{ enabled: boolean; pinned: boolean }>
   danmuOverlayPinToggle: () => Promise<{ enabled: boolean; pinned: boolean }>
   danmuOverlayStatus: () => Promise<{ enabled: boolean; pinned: boolean }>
-  getDanmuOverlaySettings: () => Promise<{ opacity: number; fontSize: number }>
+  getDanmuOverlaySettings: () => Promise<DanmuOverlaySettings>
+  patchDanmuOverlaySettings: (
+    patch: Partial<DanmuOverlaySettings>
+  ) => Promise<DanmuOverlaySettings>
+  onDanmuOverlaySettings: (cb: (settings: DanmuOverlaySettings) => void) => () => void
   onDanmuOverlayStatus: (cb: (s: { enabled: boolean; pinned: boolean }) => void) => () => void
   onDanmuOverlayPinned: (cb: (s: { pinned: boolean }) => void) => () => void
   onDanmuOverlayEvent: (cb: (item: unknown) => void) => () => void
   onDanmuOverlayRoomStats: (
     cb: (stats: { watchedNum: number; watchedText: string }) => void
   ) => () => void
+  danmuOverlayResizeStart: (direction: string) => Promise<void>
+  danmuOverlayResizeStop: () => Promise<void>
 
   // OBS 弹幕信息板
   getDanmuBoard: () => Promise<DanmuBoardConfig>

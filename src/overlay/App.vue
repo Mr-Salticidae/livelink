@@ -23,17 +23,14 @@ import PetCard from './components/PetCard.vue'
 import SongBoard from './components/SongBoard.vue'
 import type { PetDisplayItem } from '../shared/pets'
 import { DEFAULT_OVERLAY_THEME, normalizeOverlayThemeId, type OverlayThemeId } from '../shared/overlay-theme'
+import {
+  DEFAULT_DANMU_BOARD_CONFIG,
+  normalizeDanmuBoardConfig,
+  type DanmuBoardConfig
+} from '../shared/danmu-display'
 
-interface BoardPosition { x: number; y: number }
-interface BoardConfig {
-  enabled: boolean
-  position: BoardPosition
-  maxLines: number
-  fontSize: number
-  showGift: boolean
-  width: number
-  maxHeightPct: number
-  previewFull?: boolean // 装修预览模式（瞬时，主进程下发）
+type RuntimeBoardConfig = DanmuBoardConfig & {
+  previewFull: boolean // 装修预览模式（瞬时，主进程下发）
 }
 
 interface GiftItem {
@@ -307,14 +304,10 @@ function triggerCelebration(): void {
 }
 
 // OBS 弹幕信息板：默认关闭，主进程通过 danmu.board.config 推送配置
-const danmuBoardConfig = ref<BoardConfig>({
-  enabled: false,
-  position: { x: 2, y: 76 },
-  maxLines: 10,
-  fontSize: 16,
-  showGift: true,
-  width: 360,
-  maxHeightPct: 80
+const danmuBoardConfig = ref<RuntimeBoardConfig>({
+  ...DEFAULT_DANMU_BOARD_CONFIG,
+  position: { ...DEFAULT_DANMU_BOARD_CONFIG.position },
+  previewFull: false
 })
 const danmuBoardRef = ref<InstanceType<typeof DanmuBoard> | null>(null)
 
@@ -877,9 +870,17 @@ onMounted(() => {
 
   // OBS 弹幕信息板配置推送（启动 / Home 页改配置时 push）
   on<OverlayPayload>('danmu.board.config', (msg) => {
-    const x = msg.extra as Partial<BoardConfig> | undefined
+    const x = msg.extra as (Partial<DanmuBoardConfig> & { previewFull?: unknown }) | undefined
     if (!x) return
-    danmuBoardConfig.value = { ...danmuBoardConfig.value, ...x }
+    const normalized = normalizeDanmuBoardConfig(
+      { ...danmuBoardConfig.value, ...x },
+      danmuBoardConfig.value
+    )
+    danmuBoardConfig.value = {
+      ...normalized,
+      previewFull:
+        typeof x.previewFull === 'boolean' ? x.previewFull : danmuBoardConfig.value.previewFull
+    }
   })
 
   on<OverlayPayload>('overlay.theme', (msg) => {
@@ -1035,10 +1036,7 @@ onMounted(() => {
     <div v-if="danmuBoardConfig.enabled" class="absolute" :style="boardPosStyle">
       <DanmuBoard
         ref="danmuBoardRef"
-        :max-lines="danmuBoardConfig.maxLines"
-        :font-size="danmuBoardConfig.fontSize"
-        :width="danmuBoardConfig.width"
-        :max-height-pct="danmuBoardConfig.maxHeightPct"
+        :config="danmuBoardConfig"
         :preview-full="danmuBoardConfig.previewFull"
       />
     </div>

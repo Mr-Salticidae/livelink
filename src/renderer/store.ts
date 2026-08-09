@@ -16,6 +16,13 @@ import type {
 } from './types'
 import { DEFAULT_PET_CONFIG } from '../shared/pets'
 import { DEFAULT_OVERLAY_THEME, type OverlayThemeConfig } from '../shared/overlay-theme'
+import {
+  DEFAULT_DANMU_BOARD_CONFIG,
+  DEFAULT_DANMU_OVERLAY_SETTINGS,
+  normalizeDanmuBoardConfig,
+  normalizeDanmuOverlaySettings,
+  type DanmuOverlaySettings
+} from '../shared/danmu-display'
 
 export const status = ref<ConnectionStatus>({ state: 'idle' })
 export const room = ref<{ id: string }>({ id: '' })
@@ -30,6 +37,10 @@ export const rules = ref<Rule[]>([])
 export const logs = ref<LogEntry[]>([])
 export const danmuOverlayEnabled = ref<boolean>(false)
 export const danmuOverlayPinned = ref<boolean>(false)
+export const danmuOverlaySettings = ref<DanmuOverlaySettings>({
+  ...DEFAULT_DANMU_OVERLAY_SETTINGS
+})
+let danmuOverlaySettingsPushVersion = 0
 export const lotteryState = ref<LotteryState>({ phase: 'idle' })
 export const votingState = ref<VotingState>({ phase: 'idle' })
 export const horseRaceState = ref<HorseRaceState>({ phase: 'idle' })
@@ -41,13 +52,8 @@ export const petState = ref<PetState>({
   dock: []
 })
 export const danmuBoard = ref<DanmuBoardConfig>({
-  enabled: false,
-  position: { x: 2, y: 76 },
-  maxLines: 10,
-  fontSize: 16,
-  showGift: true,
-  width: 360,
-  maxHeightPct: 80
+  ...DEFAULT_DANMU_BOARD_CONFIG,
+  position: { ...DEFAULT_DANMU_BOARD_CONFIG.position }
 })
 export const overlayTheme = ref<OverlayThemeConfig>({ ...DEFAULT_OVERLAY_THEME })
 
@@ -125,7 +131,7 @@ export async function loadInitialData(): Promise<void> {
   })
   api.onOverlayStatus((s) => applyOverlayState(s))
 
-  // 弹幕悬浮窗状态初始化 + 订阅
+  // 弹幕悬浮窗状态 + 样式初始化。先订阅再拉快照，避免 get/subscribe 之间漏掉更新。
   try {
     const s = await api.danmuOverlayStatus()
     danmuOverlayEnabled.value = s.enabled
@@ -137,6 +143,19 @@ export async function loadInitialData(): Promise<void> {
     danmuOverlayEnabled.value = s.enabled
     danmuOverlayPinned.value = s.pinned
   })
+  api.onDanmuOverlaySettings((next) => {
+    danmuOverlaySettingsPushVersion += 1
+    danmuOverlaySettings.value = normalizeDanmuOverlaySettings(next)
+  })
+  try {
+    const pushVersion = danmuOverlaySettingsPushVersion
+    const snapshot = await api.getDanmuOverlaySettings()
+    if (pushVersion === danmuOverlaySettingsPushVersion) {
+      danmuOverlaySettings.value = normalizeDanmuOverlaySettings(snapshot)
+    }
+  } catch (err) {
+    console.error('getDanmuOverlaySettings failed', err)
+  }
 
   // 抽奖初始化
   await initLottery()
@@ -166,11 +185,44 @@ export async function loadInitialData(): Promise<void> {
 // 非持久（重启即关），调好画面后关掉就恢复真实状态
 export const danmuBoardPreviewFull = ref<boolean>(false)
 
+let danmuBoardPatchVersion = 0
 export async function patchDanmuBoard(patch: Partial<DanmuBoardConfig>): Promise<void> {
+  const previous = danmuBoard.value
+  const version = ++danmuBoardPatchVersion
+  // 本地先更新，让控制面板和预览不必等 IPC 往返；只让最后一次响应回写，避免滑杆乱序闪回。
+  danmuBoard.value = normalizeDanmuBoardConfig(
+    { ...danmuBoard.value, ...patch },
+    danmuBoard.value
+  )
   try {
-    danmuBoard.value = await window.api.patchDanmuBoard(patch)
+    const next = await window.api.patchDanmuBoard(patch)
+    if (version === danmuBoardPatchVersion) {
+      danmuBoard.value = normalizeDanmuBoardConfig(next)
+    }
   } catch (err) {
     console.error('patchDanmuBoard failed', err)
+    if (version === danmuBoardPatchVersion) danmuBoard.value = previous
+  }
+}
+
+let danmuOverlayPatchVersion = 0
+export async function patchDanmuOverlaySettings(
+  patch: Partial<DanmuOverlaySettings>
+): Promise<void> {
+  const previous = danmuOverlaySettings.value
+  const version = ++danmuOverlayPatchVersion
+  danmuOverlaySettings.value = normalizeDanmuOverlaySettings(
+    { ...danmuOverlaySettings.value, ...patch },
+    danmuOverlaySettings.value
+  )
+  try {
+    const next = await window.api.patchDanmuOverlaySettings(patch)
+    if (version === danmuOverlayPatchVersion) {
+      danmuOverlaySettings.value = normalizeDanmuOverlaySettings(next)
+    }
+  } catch (err) {
+    console.error('patchDanmuOverlaySettings failed', err)
+    if (version === danmuOverlayPatchVersion) danmuOverlaySettings.value = previous
   }
 }
 

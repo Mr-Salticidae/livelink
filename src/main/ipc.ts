@@ -5,7 +5,7 @@ import type { RuleEngine } from './rules/engine'
 import { TTSPlayer, VOICE_OPTIONS, type TTSConfig } from './actions/tts'
 import type { OverlayServer } from './overlay-server/server'
 import type { OverlayController } from './overlay-controller'
-import type { AppConfig, BilibiliAuth, DanmuBoardConfig } from './config/store'
+import type { AppConfig, BilibiliAuth } from './config/store'
 import type { LogSink, LogEntry } from './actions/log'
 import type { Rule } from './rules/types'
 import type { DanmuOverlayWindow } from './danmu-overlay-window'
@@ -26,6 +26,7 @@ import type { GuessingGlobalConfig } from './config/store'
 import type { PetConfig } from '../shared/pets'
 import type { AiReplyConfig } from '../shared/ai-reply'
 import type { OverlayThemeConfig } from '../shared/overlay-theme'
+import type { DanmuBoardConfig, DanmuOverlaySettings } from '../shared/danmu-display'
 import { toFriendlyError } from './errors/friendly'
 
 export interface IpcDeps {
@@ -339,6 +340,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   })
   ipcMain.handle(IpcChannels.DanmuOverlayStatus, () => danmuOverlay.getStatus())
   ipcMain.handle(IpcChannels.DanmuOverlayGetSettings, () => danmuOverlay.getSettings())
+  ipcMain.handle(
+    IpcChannels.DanmuOverlayPatchSettings,
+    (_e, patch: Partial<DanmuOverlaySettings>) => danmuOverlay.patchSettings(patch)
+  )
 
   // 把弹幕窗状态变化推到主窗口 UI（开关 toggle UI 状态）
   danmuOverlay.onStatusChange((s) => {

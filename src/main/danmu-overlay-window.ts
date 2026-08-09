@@ -15,6 +15,7 @@ import type { AppConfig, DanmuOverlayConfig } from './config/store'
 import type { Bus } from './events/bus'
 import type { StandardEvent } from './platform/adapter'
 import { IpcChannels } from '../shared/ipc-channels'
+import type { DanmuOverlaySettings } from '../shared/danmu-display'
 
 const DEFAULT_BOUNDS = { width: 320, height: 480 } as const
 const MIN_WIDTH = 220
@@ -169,10 +170,25 @@ export class DanmuOverlayWindow {
     }
   }
 
-  /** 给 IPC 用：返回 settings (opacity / fontSize) */
-  getSettings(): { opacity: number; fontSize: number } {
-    const c = this.config.getDanmuOverlay()
-    return { opacity: c.opacity, fontSize: c.fontSize }
+  /** 给 IPC / 子窗初始化使用：返回完整、已归一化的外观设置。 */
+  getSettings(): DanmuOverlaySettings {
+    return this.config.getDanmuOverlaySettings()
+  }
+
+  /**
+   * 主窗口调参入口。AppConfig 只接受 settings 白名单；窗口已打开时立即推给子窗，
+   * 窗口未打开时仅持久化，下一次打开由 getSettings() 拉取最新快照。
+   */
+  patchSettings(patch: Partial<DanmuOverlaySettings>): DanmuOverlaySettings {
+    const next = this.config.patchDanmuOverlaySettings(patch)
+    if (this.win && !this.win.isDestroyed()) {
+      try {
+        this.win.webContents.send(IpcChannels.DanmuOverlaySettingsUpdate, next)
+      } catch (err) {
+        console.error('[DanmuOverlayWindow] send settings update failed', err)
+      }
+    }
+    return next
   }
 
   private attachBus(): void {

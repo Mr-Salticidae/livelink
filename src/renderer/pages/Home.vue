@@ -12,8 +12,10 @@ import {
   rules,
   danmuOverlayEnabled,
   danmuOverlayPinned,
+  danmuOverlaySettings,
   toggleDanmuOverlay,
   toggleDanmuOverlayPin,
+  patchDanmuOverlaySettings,
   danmuBoard,
   patchDanmuBoard,
   danmuBoardPreviewFull,
@@ -23,6 +25,11 @@ import {
 } from '../store'
 import type { Rule } from '../types'
 import { OVERLAY_THEME_PRESETS, type OverlayThemeId } from '../../shared/overlay-theme'
+import {
+  DEFAULT_DANMU_BOARD_CONFIG,
+  DEFAULT_DANMU_OVERLAY_SETTINGS
+} from '../../shared/danmu-display'
+import DanmuStyleControls from '../components/DanmuStyleControls.vue'
 
 // 预览框 16:9 比例的拖动逻辑。容器尺寸 onmounted 测量
 const previewRef = ref<HTMLDivElement | null>(null)
@@ -479,22 +486,13 @@ async function copyOverlayUrl(): Promise<void> {
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <label class="text-xs text-slate-400">
             最多显示条数（5-30）
             <input
               :value="danmuBoard.maxLines"
               @change="patchDanmuBoard({ maxLines: Number(($event.target as HTMLInputElement).value) })"
               type="number" min="5" max="30"
-              class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
-            />
-          </label>
-          <label class="text-xs text-slate-400">
-            字号（12-24）
-            <input
-              :value="danmuBoard.fontSize"
-              @change="patchDanmuBoard({ fontSize: Number(($event.target as HTMLInputElement).value) })"
-              type="number" min="12" max="24"
               class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
             />
           </label>
@@ -517,6 +515,29 @@ async function copyOverlayUrl(): Promise<void> {
             />
           </label>
         </div>
+
+        <details class="group overflow-hidden rounded-xl border border-slate-700 bg-slate-950/30">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span>
+              <span class="block text-xs font-medium text-slate-200">字体、透明度与动画</span>
+              <span class="mt-0.5 block text-[11px] text-slate-500">
+                {{ danmuBoard.fontSize }}px · 背景 {{ Math.round(danmuBoard.backgroundOpacity * 100) }}% ·
+                {{ danmuBoard.messageLifetimeSec === 0 ? '消息常驻' : `${danmuBoard.messageLifetimeSec}s 后淡出` }}
+              </span>
+            </span>
+            <span class="text-xs text-sky-400 group-open:hidden">展开设置</span>
+            <span class="hidden text-xs text-sky-400 group-open:inline">收起</span>
+          </summary>
+          <div class="border-t border-slate-800 p-3">
+            <DanmuStyleControls
+              :model-value="danmuBoard"
+              :defaults="DEFAULT_DANMU_BOARD_CONFIG"
+              :username-weight-offset="100"
+              :gift-weight-offset="200"
+              @patch="patchDanmuBoard"
+            />
+          </div>
+        </details>
 
         <label class="flex items-center gap-2 text-xs text-slate-300">
           <input
@@ -584,6 +605,55 @@ async function copyOverlayUrl(): Promise<void> {
             :class="danmuOverlayPinned ? 'translate-x-4' : 'translate-x-0'"
           ></span>
         </button>
+      </div>
+
+      <div class="space-y-3 rounded-lg bg-slate-950/40 p-3">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="text-xs text-slate-400">
+            最多保留条数（5-100）
+            <input
+              :value="danmuOverlaySettings.maxLines"
+              @change="patchDanmuOverlaySettings({ maxLines: Number(($event.target as HTMLInputElement).value) })"
+              type="number" min="5" max="100"
+              class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100"
+            />
+          </label>
+          <label class="flex items-end gap-2 pb-1 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              :checked="danmuOverlaySettings.showGift"
+              @change="patchDanmuOverlaySettings({ showGift: ($event.target as HTMLInputElement).checked })"
+            />
+            <span>在主播悬浮窗中显示礼物</span>
+          </label>
+        </div>
+
+        <details class="group overflow-hidden rounded-xl border border-slate-700 bg-slate-950/30">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+            <span>
+              <span class="block text-xs font-medium text-slate-200">字体、透明度与动画</span>
+              <span class="mt-0.5 block text-[11px] text-slate-500">
+                {{ danmuOverlaySettings.fontSize }}px · 背景 {{ Math.round(danmuOverlaySettings.backgroundOpacity * 100) }}% ·
+                {{ danmuOverlaySettings.messageLifetimeSec === 0 ? '消息常驻' : `${danmuOverlaySettings.messageLifetimeSec}s 后淡出` }}
+              </span>
+            </span>
+            <span class="text-xs text-sky-400 group-open:hidden">展开设置</span>
+            <span class="hidden text-xs text-sky-400 group-open:inline">收起</span>
+          </summary>
+          <div class="border-t border-slate-800 p-3">
+            <DanmuStyleControls
+              :model-value="danmuOverlaySettings"
+              :defaults="DEFAULT_DANMU_OVERLAY_SETTINGS"
+              :username-weight-offset="200"
+              :gift-weight-offset="200"
+              @patch="patchDanmuOverlaySettings"
+            />
+          </div>
+        </details>
+
+        <p class="text-[11px] leading-relaxed text-slate-500">
+          样式会立即同步到已打开的悬浮窗；窗口关闭时也会保存，下次打开继续使用。
+        </p>
       </div>
 
       <p class="text-[11px] text-slate-500 leading-relaxed">

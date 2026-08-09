@@ -26,6 +26,21 @@ import {
   sanitizeSongRequestConfig,
   type SongRequestConfig
 } from '../../shared/song-request'
+import {
+  DEFAULT_DANMU_BOARD_CONFIG,
+  DEFAULT_DANMU_OVERLAY_SETTINGS,
+  normalizeDanmuBoardConfig,
+  normalizeDanmuOverlaySettings,
+  type DanmuBoardConfig,
+  type DanmuBoardPosition,
+  type DanmuOverlaySettings
+} from '../../shared/danmu-display'
+
+export type {
+  DanmuBoardConfig,
+  DanmuBoardPosition,
+  DanmuOverlaySettings
+} from '../../shared/danmu-display'
 
 // B 站登录态。SESSDATA 是 cookie，2023 年 7 月起 B 站对游客限制 DANMU_MSG 推送，需要登录态。
 // 仅本地存储，不上传。sessdata 用 Electron safeStorage 加密（Win 上走 DPAPI，与当前用户账号绑定），
@@ -96,23 +111,6 @@ export interface LotteryPreset {
   minFansMedalLevel: number
 }
 
-// OBS 弹幕信息板（给观众看的直播屏 overlay，区别于主播自己看的弹幕悬浮窗）
-// position 用百分比表示板子左上角在 OBS 画面中的位置，{ x: 0, y: 0 } = 屏幕左上角
-// 0.7.0 起从枚举 4 角扩展为任意位置，让主播在 Home 页预览框里拖到任何位置
-export interface DanmuBoardPosition {
-  x: number // 0-100 (%)
-  y: number // 0-100 (%)
-}
-export interface DanmuBoardConfig {
-  enabled: boolean
-  position: DanmuBoardPosition
-  maxLines: number // 同时显示条数上限 5-30
-  fontSize: number // 字号 12-24 px
-  showGift: boolean // 礼物事件是否也进面板（默认 true）
-  width: number // 板子宽度 px（240-960）
-  maxHeightPct: number // 板子最大高度，占视口高度百分比（20-95）
-}
-
 // 老配置 (0.6.x 之前) 是 4 角字符串，迁移到 { x, y } 百分比
 const LEGACY_POSITION_MAP: Record<string, DanmuBoardPosition> = {
   'top-left': { x: 2, y: 2 },
@@ -121,13 +119,11 @@ const LEGACY_POSITION_MAP: Record<string, DanmuBoardPosition> = {
   'bottom-right': { x: 80, y: 76 }
 }
 
-// 弹幕悬浮窗（主播全屏游戏时瞟弹幕用）
-export interface DanmuOverlayConfig {
+// 弹幕悬浮窗（主播全屏游戏时瞟弹幕用）。外观字段统一来自 shared/danmu-display。
+export interface DanmuOverlayConfig extends DanmuOverlaySettings {
   enabled: boolean // 启动时是否自动打开（持久化记忆）
   pinned: boolean // 是否钉住：不可拖动 + 不抢焦点（游戏窗口里鼠标点穿不被偷走）
   bounds: { x: number; y: number; width: number; height: number } | null
-  opacity: number // 背景不透明度 0-1
-  fontSize: number // 字号 px
 }
 
 export interface AppConfigSchema {
@@ -151,21 +147,10 @@ export interface AppConfigSchema {
 }
 
 const DEFAULT_DANMU_OVERLAY: DanmuOverlayConfig = {
+  ...DEFAULT_DANMU_OVERLAY_SETTINGS,
   enabled: false,
   pinned: false,
-  bounds: null,
-  opacity: 0.85,
-  fontSize: 14
-}
-
-const DEFAULT_DANMU_BOARD: DanmuBoardConfig = {
-  enabled: false, // 默认关闭，避免新装用户直播屏意外多出弹幕板
-  position: { x: 2, y: 76 }, // 左下区
-  maxLines: 10,
-  fontSize: 16,
-  showGift: true,
-  width: 360,
-  maxHeightPct: 80
+  bounds: null
 }
 
 const DEFAULT_LOTTERY_PRESET: LotteryPreset = {
@@ -255,7 +240,10 @@ const defaults: AppConfigSchema = {
   platform: { active: 'bilibili' },
   auth: { bilibili: { sessdata: '', uid: '', buvid: '' } },
   danmuOverlay: { ...DEFAULT_DANMU_OVERLAY },
-  danmuBoard: { ...DEFAULT_DANMU_BOARD },
+  danmuBoard: {
+    ...DEFAULT_DANMU_BOARD_CONFIG,
+    position: { ...DEFAULT_DANMU_BOARD_CONFIG.position }
+  },
   overlayTheme: { ...DEFAULT_OVERLAY_THEME },
   lottery: { ...DEFAULT_LOTTERY_PRESET },
   voting: { ...DEFAULT_VOTING_PRESET },
@@ -384,82 +372,67 @@ export class AppConfig {
 
   // 弹幕悬浮窗
   getDanmuOverlay(): DanmuOverlayConfig {
-    // electron-store 在老配置升级时 key 可能为 undefined，用 defaults 兜底
-    const stored = this.store.get('danmuOverlay') as DanmuOverlayConfig | undefined
-    if (!stored) return { ...DEFAULT_DANMU_OVERLAY }
-    return {
-      enabled: stored.enabled ?? false,
-      pinned: stored.pinned ?? false,
-      bounds: stored.bounds ?? null,
-      opacity: typeof stored.opacity === 'number' ? stored.opacity : DEFAULT_DANMU_OVERLAY.opacity,
-      fontSize:
-        typeof stored.fontSize === 'number' ? stored.fontSize : DEFAULT_DANMU_OVERLAY.fontSize
-    }
+    return normalizeDanmuOverlayConfig(this.store.get('danmuOverlay'))
   }
   setDanmuOverlay(cfg: DanmuOverlayConfig): void {
-    this.store.set('danmuOverlay', cfg)
+    this.store.set('danmuOverlay', normalizeDanmuOverlayConfig(cfg))
   }
   patchDanmuOverlay(patch: Partial<DanmuOverlayConfig>): DanmuOverlayConfig {
-    const next: DanmuOverlayConfig = { ...this.getDanmuOverlay(), ...patch }
+    const next = normalizeDanmuOverlayConfig({ ...this.getDanmuOverlay(), ...patch })
     this.setDanmuOverlay(next)
-    return next
+    return this.getDanmuOverlay()
+  }
+  getDanmuOverlaySettings(): DanmuOverlaySettings {
+    return normalizeDanmuOverlaySettings(this.getDanmuOverlay(), DEFAULT_DANMU_OVERLAY_SETTINGS)
+  }
+  setDanmuOverlaySettings(settings: DanmuOverlaySettings): DanmuOverlaySettings {
+    const current = this.getDanmuOverlay()
+    // normalizeDanmuOverlaySettings 只读取共享 settings 白名单，enabled / pinned / bounds
+    // 即使从 IPC 混进来也不会覆盖窗口状态。
+    const nextSettings = normalizeDanmuOverlaySettings(settings, DEFAULT_DANMU_OVERLAY_SETTINGS)
+    this.setDanmuOverlay({ ...current, ...nextSettings })
+    return this.getDanmuOverlaySettings()
+  }
+  patchDanmuOverlaySettings(patch: Partial<DanmuOverlaySettings>): DanmuOverlaySettings {
+    const current = this.getDanmuOverlaySettings()
+    const next = normalizeDanmuOverlaySettings(patch, current)
+    return this.setDanmuOverlaySettings(next)
   }
 
   // OBS 弹幕信息板
   getDanmuBoard(): DanmuBoardConfig {
-    const stored = this.store.get('danmuBoard') as
-      | (Omit<DanmuBoardConfig, 'position'> & { position: DanmuBoardPosition | string })
-      | undefined
-    if (!stored) return { ...DEFAULT_DANMU_BOARD, position: { ...DEFAULT_DANMU_BOARD.position } }
-
-    // 兼容老配置：position 是字符串（'top-left' 等）→ 迁移到 { x, y }
-    let position: DanmuBoardPosition
-    if (typeof stored.position === 'string') {
-      position =
-        LEGACY_POSITION_MAP[stored.position] ?? { ...DEFAULT_DANMU_BOARD.position }
-    } else if (stored.position && typeof stored.position === 'object') {
-      const p = stored.position
-      position = {
-        x: clampPercent(typeof p.x === 'number' ? p.x : DEFAULT_DANMU_BOARD.position.x),
-        y: clampPercent(typeof p.y === 'number' ? p.y : DEFAULT_DANMU_BOARD.position.y)
-      }
-    } else {
-      position = { ...DEFAULT_DANMU_BOARD.position }
-    }
-
-    return {
-      enabled: stored.enabled ?? DEFAULT_DANMU_BOARD.enabled,
-      position,
-      maxLines: typeof stored.maxLines === 'number' ? stored.maxLines : DEFAULT_DANMU_BOARD.maxLines,
-      fontSize: typeof stored.fontSize === 'number' ? stored.fontSize : DEFAULT_DANMU_BOARD.fontSize,
-      showGift: stored.showGift ?? DEFAULT_DANMU_BOARD.showGift,
-      width: clampBoardWidth(
-        typeof stored.width === 'number' ? stored.width : DEFAULT_DANMU_BOARD.width
-      ),
-      maxHeightPct: clampBoardMaxHeight(
-        typeof stored.maxHeightPct === 'number'
-          ? stored.maxHeightPct
-          : DEFAULT_DANMU_BOARD.maxHeightPct
-      )
-    }
+    const stored = this.store.get('danmuBoard')
+    const source = asUnknownRecord(stored)
+    const legacyPosition =
+      typeof source.position === 'string' ? LEGACY_POSITION_MAP[source.position] : undefined
+    const normalized = normalizeDanmuBoardConfig(
+      legacyPosition ? { ...source, position: legacyPosition } : source,
+      DEFAULT_DANMU_BOARD_CONFIG
+    )
+    // 四角字符串只写回一次，后续读写统一使用 { x, y }。
+    if (legacyPosition) this.store.set('danmuBoard', normalized)
+    return normalized
   }
   setDanmuBoard(cfg: DanmuBoardConfig): void {
-    // 写入前 clamp position 防止溢出
-    const safe: DanmuBoardConfig = {
-      ...cfg,
-      position: {
-        x: clampPercent(cfg.position?.x ?? DEFAULT_DANMU_BOARD.position.x),
-        y: clampPercent(cfg.position?.y ?? DEFAULT_DANMU_BOARD.position.y)
-      },
-      width: clampBoardWidth(cfg.width ?? DEFAULT_DANMU_BOARD.width),
-      maxHeightPct: clampBoardMaxHeight(cfg.maxHeightPct ?? DEFAULT_DANMU_BOARD.maxHeightPct)
-    }
-    this.store.set('danmuBoard', safe)
+    this.store.set('danmuBoard', normalizeDanmuBoardConfig(cfg, DEFAULT_DANMU_BOARD_CONFIG))
   }
   patchDanmuBoard(patch: Partial<DanmuBoardConfig>): DanmuBoardConfig {
-    const next: DanmuBoardConfig = { ...this.getDanmuBoard(), ...patch }
+    const current = this.getDanmuBoard()
+    const source = asUnknownRecord(patch)
+    const patchPosition = asUnknownRecord(source.position)
+    const next = normalizeDanmuBoardConfig(
+      {
+        ...current,
+        ...source,
+        position:
+          Object.keys(patchPosition).length > 0
+            ? { ...current.position, ...patchPosition }
+            : source.position ?? current.position
+      },
+      current
+    )
     this.setDanmuBoard(next)
-    return this.getDanmuBoard() // 返回 clamp 后的值
+    return this.getDanmuBoard()
   }
 
   // OBS overlay 主题
@@ -704,19 +677,45 @@ function decryptSessdata(stored: string): string {
   return stored
 }
 
-// DanmuBoard position 百分比 clamp 到 [0, 100]
-function clampPercent(n: number): number {
-  if (!Number.isFinite(n)) return 0
-  return Math.max(0, Math.min(100, n))
+function asUnknownRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
 }
 
-// DanmuBoard 宽度 px clamp（240-960，覆盖窄条到接近半屏）
-function clampBoardWidth(n: number): number {
-  if (!Number.isFinite(n)) return DEFAULT_DANMU_BOARD.width
-  return Math.round(Math.max(240, Math.min(960, n)))
+function normalizeDanmuOverlayConfig(value: unknown): DanmuOverlayConfig {
+  const source = asUnknownRecord(value)
+  // 1.7.1 及更早版本保存过 opacity=0.85，但渲染端从未实际使用该字段。
+  // 不把它迁移成 backgroundOpacity，避免升级后原本透明的主播窗突然出现深色底板；
+  // 老配置缺少 backgroundOpacity 时由共享默认值 0（全透明）兜底。
+  const settings = normalizeDanmuOverlaySettings(source, DEFAULT_DANMU_OVERLAY_SETTINGS)
+  return {
+    ...settings,
+    enabled:
+      typeof source.enabled === 'boolean' ? source.enabled : DEFAULT_DANMU_OVERLAY.enabled,
+    pinned: typeof source.pinned === 'boolean' ? source.pinned : DEFAULT_DANMU_OVERLAY.pinned,
+    bounds: normalizeDanmuOverlayBounds(source.bounds)
+  }
 }
-// DanmuBoard 最大高度 占视口百分比 clamp（20-95）
-function clampBoardMaxHeight(n: number): number {
-  if (!Number.isFinite(n)) return DEFAULT_DANMU_BOARD.maxHeightPct
-  return Math.round(Math.max(20, Math.min(95, n)))
+
+function normalizeDanmuOverlayBounds(
+  value: unknown
+): DanmuOverlayConfig['bounds'] {
+  if (value === null || value === undefined) return null
+  const source = asUnknownRecord(value)
+  const fields = ['x', 'y', 'width', 'height'] as const
+  if (!fields.every((field) => typeof source[field] === 'number' && Number.isFinite(source[field]))) {
+    return null
+  }
+  const x = source.x as number
+  const y = source.y as number
+  const width = source.width as number
+  const height = source.height as number
+  if (width <= 0 || height <= 0) return null
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.round(width),
+    height: Math.round(height)
+  }
 }

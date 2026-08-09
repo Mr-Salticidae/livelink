@@ -1,37 +1,136 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, nextTick } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  DEFAULT_DANMU_OVERLAY_SETTINGS,
+  buildDanmuTextShadow,
+  getDanmuFontStack,
+  hexToRgba,
+  normalizeDanmuOverlaySettings,
+  type DanmuOverlaySettings
+} from '../shared/danmu-display'
 
 interface DanmuItem {
   id: string
   kind: 'danmu' | 'gift'
   uname: string
-  // 弹幕：content；礼物：giftName + num
   content?: string
   giftName?: string
   num?: number
-  guardLevel?: number // 1-3 大航海徽章
-  isAnchor?: boolean // 本主播的牌子
+  guardLevel?: number
+  isAnchor?: boolean
   fansMedalLevel?: number
 }
 
-const MAX_ITEMS = 80 // 列表上限，超过 FIFO 丢最早的
-const items = ref<DanmuItem[]>([])
+interface StoredDanmuItem extends DanmuItem {
+  receivedAt: number
+}
+
+const items = ref<StoredDanmuItem[]>([])
 const scrollEl = ref<HTMLDivElement | null>(null)
-const settings = ref({ opacity: 0.85, fontSize: 14 })
-const pinned = ref<boolean>(false)
-const watchedText = ref<string>('') // B 站"X 人看过"文本，未连接前空
+const settings = ref<DanmuOverlaySettings>({ ...DEFAULT_DANMU_OVERLAY_SETTINGS })
+const pinned = ref(false)
+const watchedText = ref('')
+const expiryTimers = new Map<string, number>()
 
-const uid = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+const windowStyle = computed<Record<string, string>>(() => {
+  const c = settings.value
+  return {
+    '--font-family': getDanmuFontStack(c.fontFamily),
+    '--font-size': `${c.fontSize}px`,
+    '--font-weight': String(c.fontWeight),
+    '--text-color': hexToRgba(c.textColor, c.textOpacity),
+    '--muted-color': hexToRgba(c.textColor, c.textOpacity * 0.68),
+    '--username-color': hexToRgba(c.usernameColor, c.textOpacity),
+    '--gift-color': hexToRgba(c.giftColor, c.textOpacity),
+    '--background-color': hexToRgba(c.backgroundColor, c.backgroundOpacity),
+    '--text-opacity': String(c.textOpacity),
+    '--line-height': String(c.lineHeight),
+    '--line-gap': `${c.lineGap}px`,
+    '--window-radius': `${c.borderRadius}px`,
+    '--animation-duration': `${c.animationDuration}ms`,
+    '--text-shadow': buildDanmuTextShadow(c.shadowStrength, '#000000', c.textOpacity),
+    '--username-weight': String(Math.min(900, c.fontWeight + 200)),
+    '--gift-weight': String(Math.min(900, c.fontWeight + 200))
+  }
+})
 
-function push(item: DanmuItem): void {
-  items.value.push(item)
-  if (items.value.length > MAX_ITEMS) items.value.splice(0, items.value.length - MAX_ITEMS)
-  // 新事件自动滚到底，让主播总能看到最新
+const animationClass = computed(() => `animation-${settings.value.animation}`)
+const visibleItems = computed<StoredDanmuItem[]>(() => {
+  const source = items.value.filter((item) => settings.value.showGift || item.kind !== 'gift')
+  return settings.value.messageOrder === 'newest-top' ? [...source].reverse() : source
+})
+
+function isDanmuItem(value: unknown): value is DanmuItem {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Partial<DanmuItem>
+  return (
+    typeof item.id === 'string' &&
+    (item.kind === 'danmu' || item.kind === 'gift') &&
+    typeof item.uname === 'string'
+  )
+}
+
+function cancelExpiry(id: string): void {
+  const timer = expiryTimers.get(id)
+  if (timer !== undefined) window.clearTimeout(timer)
+  expiryTimers.delete(id)
+}
+
+function removeItem(id: string): void {
+  cancelExpiry(id)
+  const index = items.value.findIndex((item) => item.id === id)
+  if (index >= 0) items.value.splice(index, 1)
+}
+
+function scheduleExpiry(item: StoredDanmuItem): void {
+  cancelExpiry(item.id)
+  const lifetimeMs = settings.value.messageLifetimeSec * 1000
+  if (lifetimeMs <= 0) return
+  const remaining = Math.max(0, lifetimeMs - (Date.now() - item.receivedAt))
+  expiryTimers.set(item.id, window.setTimeout(() => removeItem(item.id), remaining))
+}
+
+function trimToLimit(): void {
+  const overflow = items.value.length - settings.value.maxLines
+  if (overflow <= 0) return
+  const removed = items.value.splice(0, overflow)
+  for (const item of removed) cancelExpiry(item.id)
+}
+
+function scrollToLatest(): void {
   void nextTick(() => {
     const el = scrollEl.value
-    if (el) el.scrollTop = el.scrollHeight
+    if (!el) return
+    el.scrollTop = settings.value.messageOrder === 'newest-top' ? 0 : el.scrollHeight
   })
 }
+
+function push(item: DanmuItem): void {
+  if (item.kind === 'gift' && !settings.value.showGift) return
+  const stored: StoredDanmuItem = { ...item, receivedAt: Date.now() }
+  items.value.push(stored)
+  trimToLimit()
+  scheduleExpiry(stored)
+  scrollToLatest()
+}
+
+watch(() => settings.value.maxLines, trimToLimit)
+watch(
+  () => settings.value.messageLifetimeSec,
+  () => {
+    for (const item of items.value) scheduleExpiry(item)
+  }
+)
+watch(() => settings.value.messageOrder, scrollToLatest)
+watch(
+  () => settings.value.showGift,
+  (showGift) => {
+    if (showGift) return
+    const gifts = items.value.filter((item) => item.kind === 'gift')
+    items.value = items.value.filter((item) => item.kind !== 'gift')
+    for (const item of gifts) cancelExpiry(item.id)
+  }
+)
 
 function closeWindow(): void {
   void window.api?.danmuOverlayClose?.()
@@ -44,31 +143,39 @@ function togglePin(): void {
 let unsubEvent: (() => void) | null = null
 let unsubPinned: (() => void) | null = null
 let unsubRoomStats: (() => void) | null = null
+let unsubSettings: (() => void) | null = null
+let receivedSettingsUpdate = false
 
 onMounted(() => {
-  // preload 暴露的 onDanmuOverlayEvent 订阅主进程过滤后的弹幕 / 礼物事件
   const api = window.api
   if (api?.onDanmuOverlayEvent) {
-    unsubEvent = api.onDanmuOverlayEvent((evt: DanmuItem) => push(evt))
-  }
-  // 监听 pinned 状态变化，title bar 视觉跟着变
-  if (api?.onDanmuOverlayPinned) {
-    unsubPinned = api.onDanmuOverlayPinned((s) => {
-      pinned.value = s.pinned
+    unsubEvent = api.onDanmuOverlayEvent((evt: unknown) => {
+      if (isDanmuItem(evt)) push(evt)
     })
   }
-  // 监听在线人数推送（B 站 WATCHED_CHANGE，几秒一次）
+  if (api?.onDanmuOverlayPinned) {
+    unsubPinned = api.onDanmuOverlayPinned((state) => {
+      pinned.value = state.pinned
+    })
+  }
   if (api?.onDanmuOverlayRoomStats) {
     unsubRoomStats = api.onDanmuOverlayRoomStats((stats) => {
       watchedText.value = stats.watchedText
     })
   }
-  // 初始化时拉一次设置（opacity / fontSize）+ pinned 状态
-  api?.getDanmuOverlaySettings?.().then((s) => {
-    if (s) settings.value = s
+  // 先订阅再拉快照，设置滑杆在子窗初始化期间变化也不会漏更新。
+  if (api?.onDanmuOverlaySettings) {
+    unsubSettings = api.onDanmuOverlaySettings((next) => {
+      receivedSettingsUpdate = true
+      settings.value = normalizeDanmuOverlaySettings(next)
+    })
+  }
+  void api?.getDanmuOverlaySettings?.().then((next) => {
+    // 拉取期间若已收到实时推送，不能再让可能较旧的快照覆盖它。
+    if (next && !receivedSettingsUpdate) settings.value = normalizeDanmuOverlaySettings(next)
   })
-  api?.danmuOverlayStatus?.().then((s) => {
-    if (s) pinned.value = s.pinned
+  void api?.danmuOverlayStatus?.().then((state) => {
+    if (state) pinned.value = state.pinned
   })
 })
 
@@ -76,18 +183,18 @@ onBeforeUnmount(() => {
   unsubEvent?.()
   unsubPinned?.()
   unsubRoomStats?.()
+  unsubSettings?.()
+  for (const timer of expiryTimers.values()) window.clearTimeout(timer)
+  expiryTimers.clear()
 })
 
-// 自定义缩放：用 Pointer Capture 而不是 document.mouseup。
-// 主进程每 16ms 用 setBounds 让窗口边缘追光标，光标可能短暂落在窗口外，
-// 此时 document 收不到 mouseup → resize 停不下来、窗口黏着光标乱跑。
-// setPointerCapture 让后续 pointerup 一定回到该 handle（即使指针移出窗口），可靠停止。
+// transparent frameless 窗口在 Windows 上只可靠支持右下角缩放，四边用 Pointer Capture 补齐。
 function startResize(e: PointerEvent, dir: string): void {
   const el = e.currentTarget as HTMLElement
   try {
     el.setPointerCapture(e.pointerId)
   } catch {
-    /* 某些环境不支持时退化为普通监听，仍有主进程兜底超时 */
+    // 主进程还有 15 秒兜底停止器。
   }
   const onUp = (): void => {
     el.removeEventListener('pointerup', onUp)
@@ -96,25 +203,19 @@ function startResize(e: PointerEvent, dir: string): void {
     try {
       el.releasePointerCapture(e.pointerId)
     } catch {
-      /* 已释放则忽略 */
+      // 已释放则忽略。
     }
     void window.api?.danmuOverlayResizeStop?.()
   }
   el.addEventListener('pointerup', onUp)
   el.addEventListener('pointercancel', onUp)
-  // window 级兜底：万一 capture 异常，指针在窗口内松开时这里也能停（stop 幂等）
   window.addEventListener('pointerup', onUp)
   void window.api?.danmuOverlayResizeStart?.(dir)
 }
 </script>
 
 <template>
-  <div
-    class="danmu-window"
-    :class="{ pinned }"
-    :style="{ '--font-size': settings.fontSize + 'px' }"
-  >
-    <!-- 自定义缩放拖手（transparent frameless 窗口在 Windows 上只能从右下角 resize，手动补全四边） -->
+  <div class="danmu-window" :class="[{ pinned }, animationClass]" :style="windowStyle">
     <template v-if="!pinned">
       <div class="resize-handle resize-n"  @pointerdown.stop="startResize($event, 'n')"></div>
       <div class="resize-handle resize-s"  @pointerdown.stop="startResize($event, 's')"></div>
@@ -125,11 +226,10 @@ function startResize(e: PointerEvent, dir: string): void {
       <div class="resize-handle resize-sw" @pointerdown.stop="startResize($event, 'sw')"></div>
       <div class="resize-handle resize-se" @pointerdown.stop="startResize($event, 'se')"></div>
     </template>
-    <!-- 标题栏：未钉住时可拖动；钉住后只剩图钉按钮可点 -->
+
     <header class="title-bar" :class="{ 'title-bar-pinned': pinned }">
       <span v-if="!pinned" class="title">LiveLink · 弹幕</span>
       <span v-else class="title pinned-hint" title="鼠标穿透中 · 到主窗口解开">🔒 已钉住</span>
-      <!-- 在线人数（B 站"X 人看过"）。窗口窄时会被 ellipsis 截掉，但 watched 文本一般 < 10 字符 -->
       <span v-if="watchedText" class="watched" :title="`累计 ${watchedText} 人看过`">
         👁 {{ watchedText }}
       </span>
@@ -143,210 +243,152 @@ function startResize(e: PointerEvent, dir: string): void {
       </div>
     </header>
 
-    <!-- 滚动列表 -->
     <div ref="scrollEl" class="scroll-area">
-      <div v-if="items.length === 0" class="empty">等待弹幕…</div>
-      <div
-        v-for="i in items"
-        :key="i.id"
-        class="line text-outline"
-        :class="{ 'line-gift': i.kind === 'gift' }"
-      >
-        <span v-if="i.guardLevel && i.guardLevel > 0" class="badge badge-guard">舰</span>
-        <span v-if="i.fansMedalLevel && i.fansMedalLevel > 0 && i.isAnchor" class="badge badge-fan">{{ i.fansMedalLevel }}</span>
-        <span class="uname">{{ i.uname }}</span>
-        <template v-if="i.kind === 'danmu'">
-          <span class="sep">:</span>
-          <span class="content">{{ i.content }}</span>
-        </template>
-        <template v-else>
-          <span class="content"> 送出 {{ i.giftName }} </span>
-          <span class="num">×{{ i.num }}</span>
-        </template>
-      </div>
+      <div v-if="visibleItems.length === 0" class="empty">等待弹幕…</div>
+      <TransitionGroup name="message-list" tag="div" class="message-list">
+        <div
+          v-for="i in visibleItems"
+          :key="i.id"
+          class="line"
+          :class="{ 'line-gift': i.kind === 'gift' }"
+        >
+          <div class="line-body">
+            <template v-if="settings.showBadges">
+              <span v-if="i.guardLevel && i.guardLevel > 0" class="badge badge-guard">舰</span>
+              <span
+                v-if="i.fansMedalLevel && i.fansMedalLevel > 0 && i.isAnchor"
+                class="badge badge-fan"
+              >{{ i.fansMedalLevel }}</span>
+            </template>
+            <span v-if="settings.showUsername" class="uname">{{ i.uname }}</span>
+            <template v-if="i.kind === 'danmu'">
+              <span v-if="settings.showUsername" class="sep">:</span>
+              <span class="content">{{ i.content }}</span>
+            </template>
+            <template v-else>
+              <span class="content">{{ settings.showUsername ? ' 送出 ' : '送出 ' }}{{ i.giftName }} </span>
+              <span class="num">×{{ i.num }}</span>
+            </template>
+          </div>
+        </div>
+      </TransitionGroup>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* 完全透明设计：窗口本身不画任何背景 / 边框 / 模糊，BrowserWindow 已是
-   transparent:true，所以游戏画面 100% 透出，弹幕窗不再挡视野。
-   可读性靠每条文字的深色描边阴影（text-shadow 模拟 outline），
-   不依赖任何底色——这样无论游戏画面亮暗都能看清。 */
 .danmu-window {
   width: 100vw;
   height: 100vh;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  background: transparent;
-  color: #e2e8f0;
+  border-radius: var(--window-radius, 0);
+  background: var(--background-color);
+  color: var(--text-color);
+  font-family: var(--font-family);
   font-size: var(--font-size, 14px);
-  overflow: hidden;
+  font-weight: var(--font-weight, 600);
+  text-shadow: var(--text-shadow);
 }
-
-/* 文字描边：四向 + 外发光的多层 text-shadow，等效一圈黑边，
-   亮背景（雪地 / 白图）也能读 */
-.text-outline {
-  text-shadow:
-    0 0 2px rgba(0, 0, 0, 0.95),
-    0 0 4px rgba(0, 0, 0, 0.9),
-    1px 1px 2px rgba(0, 0, 0, 0.95),
-    -1px -1px 2px rgba(0, 0, 0, 0.85),
-    1px -1px 2px rgba(0, 0, 0, 0.85),
-    -1px 1px 2px rgba(0, 0, 0, 0.85);
-}
-
 .title-bar {
-  /* 整条标题栏作为拖动区。pin / close 按钮用 no-drag 排除。
-     背景透明，平时控件半隐；鼠标移到窗口上才显形，不抢视觉 */
   -webkit-app-region: drag;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   height: 24px;
   padding: 0 4px 0 8px;
-  background: transparent;
+  display: flex;
   flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
   user-select: none;
   opacity: 0.28;
   transition: opacity 0.18s ease;
 }
 .danmu-window:hover .title-bar { opacity: 1; }
-.title-bar-pinned {
-  -webkit-app-region: no-drag;
-  /* 钉住时标题栏常驻可见（提醒鼠标穿透中），不再依赖 hover */
-  opacity: 0.9;
-}
+.title-bar-pinned { -webkit-app-region: no-drag; opacity: 0.9; }
 .title {
-  font-size: 11px;
-  color: #cbd5e1;
-  letter-spacing: 0.04em;
-  flex: 1;
   min-width: 0;
-  white-space: nowrap;
+  flex: 1;
   overflow: hidden;
-  text-overflow: ellipsis;
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 1px 1px 2px rgba(0, 0, 0, 0.9);
-}
-.pinned-hint { color: #fbbf24; font-weight: 600; opacity: 1; }
-.watched {
-  flex-shrink: 0;
-  margin: 0 6px;
+  color: var(--muted-color);
   font-size: 11px;
-  color: #7dd3fc;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 1px 1px 2px rgba(0, 0, 0, 0.9);
 }
-.title-buttons {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  -webkit-app-region: no-drag;
+.pinned-hint { color: var(--gift-color); font-weight: 700; opacity: 1; }
+.watched {
+  margin: 0 6px;
+  flex-shrink: 0;
+  color: var(--username-color);
+  font-size: 11px;
+  white-space: nowrap;
 }
+.title-buttons { -webkit-app-region: no-drag; display: flex; align-items: center; gap: 2px; }
 .pin-btn,
 .close-btn {
   -webkit-app-region: no-drag;
-  background: rgba(2, 6, 23, 0.45);
-  border: none;
-  color: #e2e8f0;
-  line-height: 1;
   width: 20px;
   height: 18px;
+  border: none;
   border-radius: 4px;
-  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  background: rgba(2, 6, 23, 0.45);
+  color: #e2e8f0;
+  line-height: 1;
+  cursor: pointer;
 }
 .pin-btn { font-size: 12px; }
 .close-btn { font-size: 16px; }
 .pin-btn:hover { background: rgba(148, 163, 184, 0.45); }
-.close-btn:hover {
-  background: rgba(244, 63, 94, 0.6);
-  color: white;
-}
-
-.scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px 8px 8px 8px;
-}
-/* 滚动条透明，不画轨道，仅在 hover 时微现 */
+.close-btn:hover { background: rgba(244, 63, 94, 0.6); color: white; }
+.scroll-area { flex: 1; overflow-y: auto; padding: 4px 8px 8px; }
 .scroll-area::-webkit-scrollbar { width: 5px; }
 .scroll-area::-webkit-scrollbar-track { background: transparent; }
 .scroll-area::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
-.danmu-window:hover .scroll-area::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35);
-}
-
-.empty {
-  color: #cbd5e1;
-  text-align: center;
-  padding-top: 30px;
-  font-size: 0.9em;
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 1px 1px 2px rgba(0, 0, 0, 0.9);
-}
-
+.danmu-window:hover .scroll-area::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.35); }
+.message-list { display: flex; flex-direction: column; gap: var(--line-gap, 2px); }
+.empty { padding-top: 30px; color: var(--muted-color); font-size: 0.9em; text-align: center; }
 .line {
-  line-height: 1.5;
-  word-break: break-word;
   padding: 1px 0;
-  /* 进场只用淡入 + 轻微上移，无任何背景色块（不挡视野）。
-     forwards 保留终态（完全显示） */
-  animation: lineIn 0.35s ease-out forwards;
+  line-height: var(--line-height, 1.5);
+  word-break: break-word;
 }
-.line + .line { margin-top: 2px; }
-
-@keyframes lineIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.uname {
-  color: #7dd3fc;
-  font-weight: 700;
-}
-.sep { color: #cbd5e1; margin-right: 2px; }
-.content { color: #f8fafc; font-weight: 500; }
-
-.line-gift .content {
-  color: #fde047;
-  font-weight: 700;
-}
-.line-gift .num {
-  color: #fcd34d;
-  font-weight: 700;
-}
-
+.animation-none .line-body { animation: none; }
+.animation-fade .line-body { animation: lineFadeIn var(--animation-duration) ease-out; }
+.animation-slide-up .line-body { animation: lineSlideUp var(--animation-duration) ease-out; }
+.animation-slide-left .line-body { animation: lineSlideLeft var(--animation-duration) ease-out; }
+.animation-pop .line-body { animation: linePopIn var(--animation-duration) cubic-bezier(0.2, 0.9, 0.25, 1.2); }
+@keyframes lineFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lineSlideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes lineSlideLeft { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes linePopIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+.message-list-leave-active { transition: opacity 180ms ease, transform 180ms ease; }
+.message-list-leave-to { opacity: 0; transform: translateY(-4px); }
+.message-list-move { transition: transform 180ms ease; }
+.uname { color: var(--username-color); font-weight: var(--username-weight, 700); }
+.sep { margin-right: 2px; color: var(--muted-color); }
+.content { color: var(--text-color); }
+.line-gift .content,
+.line-gift .num { color: var(--gift-color); font-weight: var(--gift-weight, 700); }
 .badge {
-  display: inline-block;
-  font-size: 0.72em;
-  padding: 0 4px;
   margin-right: 4px;
+  padding: 0 4px;
+  display: inline-block;
   border-radius: 3px;
+  opacity: var(--text-opacity, 1);
+  font-size: 0.72em;
+  font-weight: var(--gift-weight, 700);
+  line-height: 1.3;
+  text-shadow: none;
   vertical-align: 1px;
-  font-weight: 700;
-  /* 徽章保留小色块（信息密度高、面积小，不挡视野），但加描边防糊 */
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
 }
-.badge-guard {
-  background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  color: #422006;
-}
-.badge-fan {
-  background: rgba(37, 99, 235, 0.92);
-  color: #ffffff;
-  min-width: 16px;
-  text-align: center;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
-}
-
-/* 缩放拖手：贴在窗口四边 / 四角，仅未钉住时显示 */
-.resize-handle {
-  position: fixed;
-  z-index: 9999;
-  -webkit-app-region: no-drag;
-}
+.badge-guard { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #422006; }
+.badge-fan { min-width: 16px; background: rgba(37, 99, 235, 0.92); color: #fff; text-align: center; }
+.resize-handle { -webkit-app-region: no-drag; position: fixed; z-index: 9999; }
 .resize-n  { top: 0;    left: 6px;  right: 6px;  height: 5px; cursor: n-resize; }
 .resize-s  { bottom: 0; left: 6px;  right: 6px;  height: 5px; cursor: s-resize; }
 .resize-w  { left: 0;   top: 6px;   bottom: 6px; width: 5px;  cursor: w-resize; }
@@ -355,4 +397,9 @@ function startResize(e: PointerEvent, dir: string): void {
 .resize-ne { top: 0;    right: 0;   width: 8px;  height: 8px; cursor: ne-resize; }
 .resize-sw { bottom: 0; left: 0;    width: 8px;  height: 8px; cursor: sw-resize; }
 .resize-se { bottom: 0; right: 0;   width: 8px;  height: 8px; cursor: se-resize; }
+@media (prefers-reduced-motion: reduce) {
+  .line-body { animation: none !important; }
+  .message-list-leave-active,
+  .message-list-move { transition: none !important; }
+}
 </style>
