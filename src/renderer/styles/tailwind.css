@@ -30,13 +30,10 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     font-family: theme('fontFamily.sans');
-    /* 两团极淡的辉光落在左上与右下，让大片深色不至于死板。
-       固定不随内容滚动，成本仅一次绘制 */
-    background-color: var(--paper);
-    background-image:
-      radial-gradient(52% 44% at 12% 0%, rgba(var(--glow), 0.1), transparent 72%),
-      radial-gradient(46% 40% at 96% 100%, rgba(217, 139, 255, 0.07), transparent 74%);
-    background-attachment: fixed;
+    /* 注意：主窗口不透明底色（--paper + 辉光渐变）在 styles/shell-bg.css，
+       只由 renderer/main.ts 引入。danmu-overlay（主播悬浮窗）与 overlay（OBS 页）
+       也 import 本文件（要用 tailwind 工具类），但绝不能带上不透明 body 背景——
+       否则 transparent BrowserWindow 被 body 填满，弹幕窗背景透明永远失效（1.5.0 引入的坑） */
   }
 
   /* flex 子项默认 min-width:auto，装着长 URL 的 <input> 因此拒绝收缩，

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { currentPage, ttsConfig, voices } from '../store'
-import type { EventKind } from '../types'
+import type { EventKind, TTSStats } from '../types'
 
 // 可分事件配音色的事件列表。和默认规则里的 TTS 触发器对齐
 const TTS_EVENTS: { kind: EventKind; label: string; hint: string }[] = [
@@ -23,6 +23,25 @@ const localConfig = ref({
 const saving = ref(false)
 const error = ref<string | null>(null)
 const testToast = ref<string | null>(null)
+const stats = ref<TTSStats | null>(null)
+
+// 5 分钟内合成/播放失败过才提示——让"失灵却一声不吭"变成看得见的错误
+const RECENT_ERROR_MS = 5 * 60_000
+const healthWarning = computed<string | null>(() => {
+  const last = stats.value?.lastError
+  if (!last || Date.now() - last.at >= RECENT_ERROR_MS) return null
+  return `语音服务最近失败：${last.message}（本进程累计 ${stats.value?.synthFailed ?? 0} 次合成失败 / ${stats.value?.playFailed ?? 0} 次播放失败）。直播机需能直连微软语音服务。`
+})
+
+async function refreshStats(): Promise<void> {
+  try {
+    stats.value = await window.api.ttsStats()
+  } catch {
+    // 拉不到就算了，试听失败仍会走 toast
+  }
+}
+
+onMounted(() => void refreshStats())
 
 watch(
   ttsConfig,
@@ -115,6 +134,7 @@ async function test(): Promise<void> {
   } catch (err) {
     testToast.value = (err as Error)?.message ?? '播放失败'
   } finally {
+    await refreshStats()
     setTimeout(() => (testToast.value = null), 2500)
   }
 }
@@ -132,6 +152,11 @@ async function test(): Promise<void> {
       v-if="error"
       class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200"
     >{{ error }}</p>
+
+    <p
+      v-if="healthWarning"
+      class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200"
+    >⚠ {{ healthWarning }}</p>
 
     <section class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
       <header class="text-xs uppercase tracking-wide text-slate-500">全局设置</header>

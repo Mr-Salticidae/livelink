@@ -27,6 +27,8 @@ export interface DanmuReaderStats {
   skipReasons: Partial<Record<ReaderSkipReason, number>>
   /** 最近念过的几条，给 UI 做"确实在工作"的可见反馈 */
   recent: ReaderRecentItem[]
+  /** TTS 总开关当前是否开启。朗读依赖它，关了就无声——必须让主播看得见 */
+  ttsEnabled: boolean
 }
 
 const RECENT_LIMIT = 8
@@ -71,7 +73,8 @@ export class DanmuReaderService {
       spoken: this.spoken,
       skipped: this.skipped,
       skipReasons: { ...this.skipReasons },
-      recent: [...this.recent]
+      recent: [...this.recent],
+      ttsEnabled: this.tts.getConfig().enabled
     }
   }
 

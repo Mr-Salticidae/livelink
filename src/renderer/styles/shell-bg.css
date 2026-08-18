@@ -1,0 +1,14 @@
+/* 主窗口（renderer）专属的页面底色。
+   1.5.0 视觉系统「蛛丝」的不透明纸面 + 辉光渐变，只给主播端主窗口用。
+   danmu-overlay / overlay 两个入口 import 的是 tailwind.css（工具类），
+   刻意不 import 本文件：它们的 BrowserWindow 是 transparent 的，
+   body 一旦有不透明背景，弹幕悬浮窗的"背景透明度"滑杆全部失效。 */
+body {
+  /* 两团极淡的辉光落在左上与右下，让大片深色不至于死板。
+     固定不随内容滚动，成本仅一次绘制 */
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(52% 44% at 12% 0%, rgba(var(--glow), 0.1), transparent 72%),
+    radial-gradient(46% 40% at 96% 100%, rgba(217, 139, 255, 0.07), transparent 74%);
+  background-attachment: fixed;
+}

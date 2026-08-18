@@ -335,6 +335,17 @@ export interface DanmuReaderStats {
   skipped: number
   skipReasons: Record<string, number>
   recent: { at: number; uname: string; text: string }[]
+  ttsEnabled: boolean
+}
+
+/** TTS 播报队列运行统计。字段与 main/actions/tts.ts 的 TTSStats 对齐 */
+export interface TTSStats {
+  queued: number
+  speaking: boolean
+  dropped: number
+  synthFailed: number
+  playFailed: number
+  lastError: { message: string; at: number } | null
 }
 
 export interface ApiSurface {
@@ -354,7 +365,7 @@ export interface ApiSurface {
   ttsVoiceList: () => Promise<VoiceOption[]>
   ttsStop: () => Promise<{ ok: boolean }>
   ttsSkip: () => Promise<{ ok: boolean }>
-  ttsStats: () => Promise<{ queued: number; speaking: boolean; dropped: number }>
+  ttsStats: () => Promise<TTSStats>
 
   // 弹幕朗读（念观众发的弹幕原文）
   danmuReaderGet: () => Promise<DanmuReaderConfig>

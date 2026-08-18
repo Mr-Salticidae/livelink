@@ -455,7 +455,8 @@ async function runDrainChecks(): Promise<void> {
     }
     player.enqueue('BAD', { priority: 'normal' })
     player.enqueue('GOOD', { priority: 'normal' })
-    await sleep(600)
+    // BAD 会走满 3 次尝试 + 2×400ms 重试间隔，得等它彻底失败后才轮到 GOOD
+    await sleep(2600)
     check('某条合成失败不影响后面的', events.includes('play-end:GOOD'), events.join(' '))
   }
 

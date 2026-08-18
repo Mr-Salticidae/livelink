@@ -89,6 +89,12 @@ export interface TTSStats {
   speaking: boolean
   /** 因为队列满 / 过期被丢掉的条数（进程内累计，用来在 UI 上提示"念不过来了"） */
   dropped: number
+  /** 合成失败条数（进程内累计）。持续增长 = edge-tts 在线服务连不上，直播必看 */
+  synthFailed: number
+  /** 播放失败条数（进程内累计），audioWindow 不可用 / executeJavaScript 失败 */
+  playFailed: number
+  /** 最近一次合成或播放失败的摘要。UI 据此提示"为什么一声不吭" */
+  lastError: { message: string; at: number } | null
 }
 
 export class TTSPlayer {
@@ -96,6 +102,11 @@ export class TTSPlayer {
   private queue: QueueItem[] = []
   private processing = false
   private dropped = 0
+  // 合成 / 播放失败计数与最近错误。edge-tts 走微软在线端点，直播机网络不通时
+  // 每一条播报都会静默失败——没有这两个计数，主播只知道"一声不吭"不知道为什么
+  private synthFailed = 0
+  private playFailed = 0
+  private lastError: { message: string; at: number } | null = null
   // 每次 stop() 自增。drain 循环在每个 await 之后比对，发现变了就立刻退出，
   // 避免"已经喊停了还在念上一条"
   private generation = 0
@@ -125,7 +136,14 @@ export class TTSPlayer {
   }
 
   getStats(): TTSStats {
-    return { queued: this.queue.length, speaking: this.processing, dropped: this.dropped }
+    return {
+      queued: this.queue.length,
+      speaking: this.processing,
+      dropped: this.dropped,
+      synthFailed: this.synthFailed,
+      playFailed: this.playFailed,
+      lastError: this.lastError ? { ...this.lastError } : null
+    }
   }
 
   enqueue(rawText: string, options?: EnqueueOptions): void {
@@ -306,21 +324,31 @@ export class TTSPlayer {
     try {
       return await this.synthesize(item.text, item.voice)
     } catch (err) {
+      this.synthFailed += 1
+      this.recordError(`语音合成失败（${(err as Error)?.message ?? '网络错误'}）——检查网络或代理能否访问微软语音服务`)
       console.error('[TTSPlayer] synthesize failed', err)
       return null
     }
   }
 
+  private recordError(message: string): void {
+    this.lastError = { message, at: Date.now() }
+  }
+
   private async synthesize(text: string, voice: string): Promise<Buffer> {
-    try {
-      return await this.synthesizeOnce(text, voice)
-    } catch (err) {
-      // edge-tts 走微软在线端点，偶发握手失败很常见，重试一次基本都能过。
-      // 只retry一次：再多就会让这条播报滞后到没有意义
-      await delay(SYNTHESIS_RETRY_DELAY_MS)
-      console.warn('[TTSPlayer] synthesize retry after', (err as Error)?.message ?? err)
-      return this.synthesizeOnce(text, voice)
+    // edge-tts 走微软在线端点，直播机网络不稳时偶发握手失败非常常见。
+    // 最多 3 次尝试（初始 + 2 重试）：再多就会让这条播报滞后到没有意义
+    let lastErr: unknown
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await delay(SYNTHESIS_RETRY_DELAY_MS)
+      try {
+        return await this.synthesizeOnce(text, voice)
+      } catch (err) {
+        lastErr = err
+        console.warn(`[TTSPlayer] synthesize attempt ${attempt + 1} failed:`, (err as Error)?.message ?? err)
+      }
     }
+    throw lastErr
   }
 
   private async synthesizeOnce(text: string, voice: string): Promise<Buffer> {
@@ -344,6 +372,8 @@ export class TTSPlayer {
     try {
       win = await this.ensureAudioWindow()
     } catch (err) {
+      this.playFailed += 1
+      this.recordError(`播放窗口创建失败（${(err as Error)?.message ?? '未知错误'}）`)
       console.error('[TTSPlayer] audio window unavailable', err)
       return
     }
@@ -373,8 +403,14 @@ export class TTSPlayer {
       }
     })`
     try {
-      await withTimeout(win.webContents.executeJavaScript(script, true), PLAYBACK_TIMEOUT_MS)
+      const result = await withTimeout(win.webContents.executeJavaScript(script, true), PLAYBACK_TIMEOUT_MS)
+      if (result === 'error' || result === 'play-rejected' || result === 'exception') {
+        this.playFailed += 1
+        this.recordError(`播放失败（${result}）`)
+      }
     } catch (err) {
+      this.playFailed += 1
+      this.recordError(`播放失败（${(err as Error)?.message ?? '未知错误'}）`)
       console.error('[TTSPlayer] playback failed', err)
     }
   }

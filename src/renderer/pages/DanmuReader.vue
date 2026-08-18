@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { voices } from '../store'
-import type { DanmuReaderConfig, DanmuReaderStats, ReaderScope } from '../types'
+import type { DanmuReaderConfig, DanmuReaderStats, ReaderScope, TTSStats } from '../types'
 
 const config = ref<DanmuReaderConfig | null>(null)
 const stats = ref<DanmuReaderStats | null>(null)
+const ttsStats = ref<TTSStats | null>(null)
 const ttsQueued = ref(0)
 const saving = ref(false)
 const error = ref<string | null>(null)
@@ -65,11 +66,25 @@ async function refreshStats(): Promise<void> {
   try {
     stats.value = await window.api.danmuReaderStats()
     const s = await window.api.ttsStats()
+    ttsStats.value = s
     ttsQueued.value = s.queued
   } catch {
     // 轮询失败不打扰主播，下一轮自然会恢复
   }
 }
+
+// TTS 侧的"无声"原因。5 分钟内失败过才提示，陈年错误不吓人
+const RECENT_ERROR_MS = 5 * 60_000
+const ttsWarning = computed<string | null>(() => {
+  if (config.value?.enabled && stats.value && !stats.value.ttsEnabled) {
+    return '语音播报总开关没开：所有朗读都不会出声。到「语音」页把 TTS 语音播报打开。'
+  }
+  const last = ttsStats.value?.lastError
+  if (last && Date.now() - last.at < RECENT_ERROR_MS) {
+    return `${last.message}（${(ttsStats.value?.synthFailed ?? 0)} 次合成失败 / ${ttsStats.value?.playFailed ?? 0} 次播放失败）`
+  }
+  return null
+})
 
 async function persist(): Promise<void> {
   if (!config.value) return
@@ -146,6 +161,12 @@ function timeText(at: number): string {
       v-if="error"
       class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200"
     >{{ error }}</p>
+
+    <!-- 朗读开了却一声不吭的两类硬原因：总开关没开 / 在线合成服务连不上 -->
+    <p
+      v-if="ttsWarning"
+      class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200"
+    >⚠ {{ ttsWarning }}</p>
 
     <!-- 开关 + 实时状态 -->
     <section class="ll-card space-y-4 p-5">
