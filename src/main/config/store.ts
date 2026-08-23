@@ -6,6 +6,7 @@ import { DEFAULT_TTS_CONFIG, VALID_VOICE_VALUES, type TTSConfig } from '../actio
 import { DEFAULT_PET_CONFIG, clampPetConfig, type PetConfig } from '../../shared/pets'
 import {
   DEFAULT_AI_REPLY_CONFIG,
+  mergeAiReplyPatch,
   sanitizeAiReplyConfig,
   type AiReplyConfig,
   type AiReplyPublicConfig,
@@ -555,13 +556,18 @@ export class AppConfig {
     this.store.set('aiReply', sanitizeAiReplyConfig(config))
   }
   patchAiReply(patch: Partial<AiReplyConfig>): AiReplyPublicConfig {
-    const current = this.getAiReply()
-    const merged = {
-      ...current,
-      ...patch,
-      apiKey: patch.apiKey === undefined ? current.apiKey : patch.apiKey
-    }
+    const merged = mergeAiReplyPatch(this.getAiReply(), patch)
     this.setAiReply(merged)
+
+    // 写完立刻读回来核对。配置文件被安全软件锁住 / 所在目录只读时，写入未必真的落盘，
+    // 页面却一路"保存成功"——主播看到的就是"我明明填了 Key，它还说我没填"。
+    // 与其让错误消失，不如在这里就抛出来，页面能如实告诉主播哪里出了问题。
+    const saved = this.getAiReply()
+    if (saved.apiKey !== merged.apiKey) {
+      throw new Error(
+        `API Key 没能写进配置文件（${this.store.path}），请检查这个文件是不是被占用或只读了`
+      )
+    }
     return this.getAiReplyPublic()
   }
 

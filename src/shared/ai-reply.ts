@@ -16,6 +16,9 @@ export interface AiReplyConfig {
 
 export interface AiReplyPublicConfig extends Omit<AiReplyConfig, 'apiKey'> {
   hasApiKey: boolean
+  // 打码后的 Key（sk-abcd……wxyz）。主播说"我明明填了 Key"时，
+  // 页面得能拿出证据：存进去的到底是不是他刚粘的那一串。
+  apiKeyHint: string
 }
 
 export const DEFAULT_AI_REPLY_CONFIG: AiReplyConfig = {
@@ -35,11 +38,29 @@ export const DEFAULT_AI_REPLY_CONFIG: AiReplyConfig = {
   logReply: true
 }
 
+// Key 是从 DeepSeek 网页 / 微信 / 记事本里复制过来的，粘贴时经常带上肉眼看不见的脏字符：
+// 前后换行、全角空格、零宽字符、复制富文本带来的 BOM。这些字符
+//   · 只 trim() 的话清不掉中间的那些
+//   · 留在 Key 里会让 Authorization 头非法，fetch 直接抛 "Invalid header value"，
+//     主播看到的是一句完全看不懂的英文报错
+// DeepSeek 的 Key 本身是 sk- 加一串 ASCII，不含任何空白，所以整串清干净是安全的。
+export function normalizeApiKey(raw: unknown): string {
+  return String(raw ?? '').replace(/[\s\u200B-\u200D]/g, '')
+}
+
+// 给页面看的打码 Key：太短就整串打码，避免把一个短 Key 直接露出来
+export function maskApiKey(key: string): string {
+  const k = normalizeApiKey(key)
+  if (!k) return ''
+  if (k.length <= 12) return `${k.slice(0, 2)}${'•'.repeat(6)}`
+  return `${k.slice(0, 6)}${'•'.repeat(6)}${k.slice(-4)}`
+}
+
 export function sanitizeAiReplyConfig(config: Partial<AiReplyConfig>): AiReplyConfig {
   const base = { ...DEFAULT_AI_REPLY_CONFIG, ...config }
   return {
     enabled: Boolean(base.enabled),
-    apiKey: String(base.apiKey ?? '').trim(),
+    apiKey: normalizeApiKey(base.apiKey),
     model: String(base.model || DEFAULT_AI_REPLY_CONFIG.model).trim(),
     systemPrompt: String(base.systemPrompt || DEFAULT_AI_REPLY_CONFIG.systemPrompt).slice(0, 1000),
     triggerMode: ['mention', 'keyword', 'all'].includes(base.triggerMode)
@@ -58,9 +79,25 @@ export function sanitizeAiReplyConfig(config: Partial<AiReplyConfig>): AiReplyCo
   }
 }
 
+// 合并一次页面提交的改动。Key 的三种语义在这里定死，主进程和页面都照这个走：
+//   patch 里没有 apiKey 字段 = 不动已保存的 Key（改冷却 / 人格时不用把 Key 再粘一遍）
+//   apiKey 是空串            = 主播主动点了"清除 Key"
+//   apiKey 有内容            = 覆盖成新的
+export function mergeAiReplyPatch(
+  current: AiReplyConfig,
+  patch: Partial<AiReplyConfig>
+): AiReplyConfig {
+  return sanitizeAiReplyConfig({
+    ...current,
+    ...patch,
+    apiKey: patch.apiKey === undefined ? current.apiKey : normalizeApiKey(patch.apiKey)
+  })
+}
+
 export function toPublicAiReplyConfig(config: AiReplyConfig): AiReplyPublicConfig {
-  const { apiKey: _apiKey, ...rest } = sanitizeAiReplyConfig(config)
-  return { ...rest, hasApiKey: Boolean(config.apiKey.trim()) }
+  const sanitized = sanitizeAiReplyConfig(config)
+  const { apiKey, ...rest } = sanitized
+  return { ...rest, hasApiKey: Boolean(apiKey), apiKeyHint: maskApiKey(apiKey) }
 }
 
 function clampInt(value: number, min: number, max: number): number {

@@ -1,6 +1,6 @@
 {
   "name": "livelink",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "B 站直播弹幕+礼物插件 — 给非技术主播朋友的桌面助手",
   "main": "./out/main/index.js",
   "author": "跳蛛先生",
@@ -27,6 +27,7 @@
     "verify:reader": "esbuild scripts/verify-danmu-reader.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-danmu-reader.cjs --external:electron --log-level=warning && node node_modules/.cache/verify-danmu-reader.cjs",
     "verify:song": "esbuild scripts/verify-song-request.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-song-request.cjs --external:electron --log-level=warning && node node_modules/.cache/verify-song-request.cjs",
     "verify:assets": "esbuild scripts/verify-assets.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-assets.cjs --external:electron --log-level=warning && node node_modules/.cache/verify-assets.cjs",
+    "verify:ai-reply": "esbuild scripts/verify-ai-reply.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-ai-reply.cjs --log-level=warning && node node_modules/.cache/verify-ai-reply.cjs",
     "verify:danmu-display": "esbuild scripts/verify-danmu-display.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/verify-danmu-display.cjs --log-level=warning && node node_modules/.cache/verify-danmu-display.cjs"
   },
   "dependencies": {
