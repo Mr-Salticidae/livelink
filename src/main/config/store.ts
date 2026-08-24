@@ -1,6 +1,6 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
-import { defaultRules } from '../rules/defaults'
+import { defaultRules, upgradeUntouchedWelcome } from '../rules/defaults'
 import type { Rule } from '../rules/types'
 import { DEFAULT_TTS_CONFIG, VALID_VOICE_VALUES, type TTSConfig } from '../actions/tts'
 import { DEFAULT_PET_CONFIG, clampPetConfig, type PetConfig } from '../../shared/pets'
@@ -265,6 +265,15 @@ export class AppConfig {
       defaults,
       clearInvalidConfig: true
     })
+    this.upgradeUntouchedWelcome()
+  }
+
+  // 欢迎语改成"一行一句、随机挑一句说"之后，老用户配置里存的还是那句单句欢迎。
+  // 判断与替换的规矩写在 rules/defaults.ts 的 upgradeUntouchedWelcome（可离线自检），
+  // 这里只负责在启动时落一次盘。没改过的才升级，主播改过的一个字都不动。
+  private upgradeUntouchedWelcome(): void {
+    const next = upgradeUntouchedWelcome(this.getRules())
+    if (next) this.setRules(next)
   }
 
   // room

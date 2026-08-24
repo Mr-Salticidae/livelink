@@ -90,6 +90,19 @@ function actionLabel(kind: string): string {
   return kind
 }
 
+// 折叠状态下的模板摘要。模板现在可以写很多句（一行一句、随机挑一句说），
+// 整段塞进小标签会把卡片撑烂，所以只显示第一句 + 还有几句
+function lineCount(text: string): number {
+  return text.split('\n').filter((l) => l.trim().length > 0).length
+}
+
+function templateSummary(text: string): string {
+  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
+  if (lines.length === 0) return '（空）'
+  if (lines.length === 1) return lines[0]
+  return `${lines[0]} …共 ${lines.length} 句`
+}
+
 function matchSummary(rule: Rule): string {
   const m = rule.match
   if (m.kind === 'always') return '总是触发'
@@ -180,7 +193,7 @@ function setKeywordsFromText(rule: Rule, text: string): void {
                 v-for="(a, i) in rule.actions"
                 :key="i"
                 class="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300"
-              >{{ actionLabel(a.kind) }}<span v-if="a.template">: {{ a.template.text }}</span></span>
+              >{{ actionLabel(a.kind) }}<span v-if="a.template">: {{ templateSummary(a.template.text) }}</span></span>
             </div>
           </div>
           <div class="flex shrink-0 gap-2">
@@ -304,16 +317,26 @@ function setKeywordsFromText(rule: Rule, text: string): void {
             :key="idx"
             class="rounded border border-slate-800 bg-slate-950/60 p-3"
           >
-            <div class="mb-1 text-xs text-slate-400">
-              {{ actionLabel(action.kind) }} 模板
-              <span class="text-slate-600">（占位符 {uname} {giftName} {num} {content} 等）</span>
+            <div class="mb-1 flex items-baseline justify-between gap-2 text-xs text-slate-400">
+              <span>
+                {{ actionLabel(action.kind) }} 模板
+                <span class="text-slate-600">（占位符 {uname} {guardName} {medalLevel} {giftName} {num} {content} 等）</span>
+              </span>
+              <span v-if="action.template" class="shrink-0 text-[10px] text-slate-500">
+                {{ lineCount(action.template.text) }} 句
+              </span>
             </div>
             <textarea
               v-if="action.template"
               v-model="action.template.text"
-              rows="2"
+              rows="5"
               class="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100 font-mono"
             />
+            <p v-if="action.template" class="mt-1 text-[11px] text-slate-500">
+              一行一句，每次随机挑一句说 —— 只有一句的话，观众看三次就知道那是台机器。
+              同一条规则的 TTS 和 Overlay 会挑到对应的那一句，不会出现"听到一句、画面上写着另一句"。
+              <span class="text-slate-600">{guardName} 对普通观众是空的、对舰长是"舰长"，所以「{guardName}{uname}到了」一句话能照顾两种人。</span>
+            </p>
             <div v-else class="text-xs text-slate-600">此动作无模板（{{ action.kind }}）</div>
           </div>
 

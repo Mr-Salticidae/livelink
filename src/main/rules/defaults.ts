@@ -10,10 +10,43 @@ export const defaultRules: Rule[] = [
     match: { kind: 'always' },
     cooldownSec: 0,
     perUserCooldownSec: 600, // 同一人 10 分钟内只欢迎一次，避免反复进出刷屏
+    // 欢迎语一行一句，每次随机挑一句说（见 rules/template.ts 的 pickLine）。
+    // 只有一句的欢迎，观众看三次就知道那是台机器；轮着来才像屋里坐着个活人。
+    // TTS 与 overlay 写成一一对应的八句：同一次进房，耳朵里听到第 n 句、
+    // 画面上就显示第 n 句。想更皮、更玩梗，主播在"规则"页往里加行即可。
     actions: [
       { kind: 'log', template: { text: '{uname} 进入了直播间' } },
-      { kind: 'tts', template: { text: '欢迎{uname}来到直播间' } },
-      { kind: 'overlay', overlayPayload: { kind: 'viewer.enter', text: '欢迎 {uname}' } }
+      {
+        kind: 'tts',
+        template: {
+          text: [
+            '欢迎{uname}',
+            '{uname}来了',
+            '哟，{uname}',
+            '{guardName}{uname}到了',
+            '{uname}，坐',
+            '欢迎{uname}，随便看',
+            '哎，{uname}来了',
+            '{uname}，来得正好'
+          ].join('\n')
+        }
+      },
+      {
+        kind: 'overlay',
+        overlayPayload: {
+          kind: 'viewer.enter',
+          text: [
+            '欢迎 {uname}',
+            '{uname} 来了',
+            '哟，{uname}',
+            '{guardName}{uname} 到了',
+            '{uname}，坐',
+            '欢迎 {uname}，随便看',
+            '哎，{uname} 来了',
+            '{uname}，来得正好'
+          ].join('\n')
+        }
+      }
     ]
   },
   {
@@ -89,3 +122,37 @@ export const defaultRules: Rule[] = [
     ]
   }
 ]
+
+// 1.8.x 那两句单句欢迎的原文。老配置里存的就是它们
+const LEGACY_WELCOME_TTS = '欢迎{uname}来到直播间'
+const LEGACY_WELCOME_OVERLAY = '欢迎 {uname}'
+
+/**
+ * 把"一个字都没动过"的默认欢迎升级成多句语料。
+ *
+ * defaults 只在首次初始化时写入，老用户配置里存着的还是那句单句欢迎 ——
+ * 不管的话，新语料对已经在用的人等于不存在。
+ *
+ * 但只升级原封不动的那条：模板和 1.8.x 旧默认值完全一致才替换。主播自己改过
+ * 一个字，就说明那是他要的话，谁也不许替他改回去。开关、冷却这些也原样保留。
+ *
+ * @returns 升级后的新数组；不需要升级时返回 null（调用方据此决定要不要写盘）
+ */
+export function upgradeUntouchedWelcome(rules: Rule[]): Rule[] | null {
+  const idx = rules.findIndex((r) => r.id === 'welcome.default')
+  if (idx < 0) return null
+
+  const current = rules[idx]
+  const tts = current.actions.find((a) => a.kind === 'tts')
+  const overlay = current.actions.find((a) => a.kind === 'overlay')
+  if ((tts?.template?.text ?? '') !== LEGACY_WELCOME_TTS) return null
+  if (String(overlay?.overlayPayload?.text ?? '') !== LEGACY_WELCOME_OVERLAY) return null
+
+  const fresh = defaultRules.find((r) => r.id === 'welcome.default')
+  if (!fresh) return null
+
+  const next = [...rules]
+  // 只换话术：enabled / cooldownSec / perUserCooldownSec / name 全部保留主播现有的
+  next[idx] = { ...current, actions: fresh.actions.map((a) => structuredClone(a)) }
+  return next
+}

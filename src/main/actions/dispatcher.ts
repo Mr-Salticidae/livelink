@@ -1,6 +1,6 @@
 import type { EventKind, StandardEvent } from '../platform/adapter'
 import type { Rule, ActionSpec } from '../rules/types'
-import { renderTemplate } from '../rules/template'
+import { renderPick } from '../rules/template'
 import type { TTSPlayer, TTSPriority } from './tts'
 import type { OverlayBroadcaster } from './overlay'
 import type { LogSink } from './log'
@@ -55,9 +55,12 @@ export class ActionDispatcher {
   }
 
   async dispatch(rule: Rule, event: StandardEvent, ctx: Record<string, string>): Promise<void> {
+    // 一次事件掷一次骰子，同一条规则的所有动作共用：模板写了多句时，
+    // TTS 念的和 OBS 显示的必须是对应的那一句（详见 rules/template.ts 的 pickLine）
+    const roll = Math.random()
     for (const spec of rule.actions) {
       try {
-        await this.runAction(spec, rule, event, ctx)
+        await this.runAction(spec, rule, event, ctx, roll)
       } catch (err) {
         console.error(`[Dispatcher] action ${spec.kind} failed for rule ${rule.id}`, err)
       }
@@ -68,27 +71,28 @@ export class ActionDispatcher {
     spec: ActionSpec,
     rule: Rule,
     event: StandardEvent,
-    ctx: Record<string, string>
+    ctx: Record<string, string>,
+    roll: number
   ): Promise<void> {
     if (spec.kind === 'log') {
-      const text = spec.template ? renderTemplate(spec.template.text, ctx) : `${rule.name}`
+      const text = spec.template ? renderPick(spec.template.text, ctx, roll) : `${rule.name}`
       this.log.writeFromRule(rule, event, text)
       return
     }
 
     if (spec.kind === 'tts') {
-      const text = spec.template ? renderTemplate(spec.template.text, ctx) : ''
+      const text = spec.template ? renderPick(spec.template.text, ctx, roll) : ''
       // 传 eventKind 让 ttsPlayer 按事件类型查 perEventVoice 覆盖（多角色音色）
       this.tts.enqueue(text, { eventKind: event.kind, priority: priorityFor(event.kind) })
       return
     }
 
     if (spec.kind === 'overlay') {
-      // overlayPayload 里的字符串字段也允许带占位符（比如 {uname}）
+      // overlayPayload 里的字符串字段也允许带占位符（比如 {uname}）和多句写法
       const renderedExtra: Record<string, unknown> = {}
       if (spec.overlayPayload) {
         for (const [k, v] of Object.entries(spec.overlayPayload)) {
-          renderedExtra[k] = typeof v === 'string' ? renderTemplate(v, ctx) : v
+          renderedExtra[k] = typeof v === 'string' ? renderPick(v, ctx, roll) : v
         }
       }
       const kind = (renderedExtra['kind'] as string | undefined) ?? event.kind
