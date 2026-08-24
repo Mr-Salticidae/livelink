@@ -16,3 +16,6 @@ out/
 # 图标处理中间产物 / MJ 原图（icon.ico 才是分发用的最终资源）
 resources/_processed/
 resources/mr_jumping_spider_*.png
+
+# AI 助手工作区数据
+.workbuddy/
